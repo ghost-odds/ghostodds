@@ -1,10 +1,11 @@
 use anchor_lang::prelude::*;
-use anchor_spl::token::{self, Burn, Mint, MintTo, Token, TokenAccount, Transfer};
+use anchor_lang::system_program;
+use anchor_spl::token::{self, Burn, InitializeAccount, InitializeMint, Mint, MintTo, Token, TokenAccount, Transfer};
 
 declare_id!("FU64EotiwqACVJ9hyhH6XA9iiqQKmWjmPTUmSF1i3ar9");
 
-const MAX_QUESTION_LEN: usize = 200;
-const MAX_DESCRIPTION_LEN: usize = 400;
+const MAX_QUESTION_LEN: usize = 128;
+const MAX_DESCRIPTION_LEN: usize = 200;
 const MAX_CATEGORY_LEN: usize = 32;
 const MAX_RESOLUTION_SOURCE_LEN: usize = 64;
 const MIN_MARKET_DURATION: i64 = 86400;
@@ -15,16 +16,15 @@ const STATUS_ACTIVE: u8 = 0;
 const STATUS_RESOLVED: u8 = 2;
 const STATUS_CANCELLED: u8 = 3;
 
+const MINT_SIZE: usize = 82;
+const TOKEN_ACCOUNT_SIZE: usize = 165;
+
 #[program]
 pub mod ghostodds {
     use super::*;
 
-    pub fn initialize_platform(
-        ctx: Context<InitializePlatform>,
-        fee_bps: u16,
-    ) -> Result<()> {
+    pub fn initialize_platform(ctx: Context<InitializePlatform>, fee_bps: u16) -> Result<()> {
         require!(fee_bps <= MAX_FEE_BPS, GhostOddsError::FeeTooHigh);
-
         let platform = &mut ctx.accounts.platform;
         platform.authority = ctx.accounts.authority.key();
         platform.market_count = 0;
@@ -32,12 +32,7 @@ pub mod ghostodds {
         platform.fee_bps = fee_bps;
         platform.treasury = ctx.accounts.treasury.key();
         platform.bump = ctx.bumps.platform;
-
-        emit!(PlatformInitialized {
-            authority: platform.authority,
-            fee_bps,
-            treasury: platform.treasury,
-        });
+        emit!(PlatformInitialized { authority: platform.authority, fee_bps, treasury: platform.treasury });
         Ok(())
     }
 
@@ -71,16 +66,69 @@ pub mod ghostodds {
         let market_id = platform.market_count;
         platform.market_count = platform.market_count.checked_add(1).ok_or(GhostOddsError::MathOverflow)?;
 
-        // Transfer initial liquidity to vault
-        token::transfer(
-            CpiContext::new(
-                ctx.accounts.token_program.to_account_info(),
-                Transfer {
-                    from: ctx.accounts.authority_collateral.to_account_info(),
+        let rent = Rent::get()?;
+        let market_key = ctx.accounts.market.key();
+        let market_id_bytes = market_id.to_le_bytes();
+
+        // Create YES mint via CPI
+        let yes_seeds: &[&[u8]] = &[b"yes_mint", market_id_bytes.as_ref(), &[ctx.bumps.yes_mint]];
+        system_program::create_account(
+            CpiContext::new_with_signer(ctx.accounts.system_program.to_account_info(),
+                system_program::CreateAccount {
+                    from: ctx.accounts.authority.to_account_info(),
+                    to: ctx.accounts.yes_mint.to_account_info(),
+                }, &[yes_seeds]),
+            rent.minimum_balance(MINT_SIZE), MINT_SIZE as u64, &ctx.accounts.token_program.key(),
+        )?;
+        token::initialize_mint(
+            CpiContext::new(ctx.accounts.token_program.to_account_info(),
+                InitializeMint { mint: ctx.accounts.yes_mint.to_account_info(), rent: ctx.accounts.rent.to_account_info() }),
+            6, &market_key, None,
+        )?;
+
+        // Create NO mint via CPI
+        let no_seeds: &[&[u8]] = &[b"no_mint", market_id_bytes.as_ref(), &[ctx.bumps.no_mint]];
+        system_program::create_account(
+            CpiContext::new_with_signer(ctx.accounts.system_program.to_account_info(),
+                system_program::CreateAccount {
+                    from: ctx.accounts.authority.to_account_info(),
+                    to: ctx.accounts.no_mint.to_account_info(),
+                }, &[no_seeds]),
+            rent.minimum_balance(MINT_SIZE), MINT_SIZE as u64, &ctx.accounts.token_program.key(),
+        )?;
+        token::initialize_mint(
+            CpiContext::new(ctx.accounts.token_program.to_account_info(),
+                InitializeMint { mint: ctx.accounts.no_mint.to_account_info(), rent: ctx.accounts.rent.to_account_info() }),
+            6, &market_key, None,
+        )?;
+
+        // Create vault via CPI
+        let vault_seeds: &[&[u8]] = &[b"vault", market_id_bytes.as_ref(), &[ctx.bumps.vault]];
+        system_program::create_account(
+            CpiContext::new_with_signer(ctx.accounts.system_program.to_account_info(),
+                system_program::CreateAccount {
+                    from: ctx.accounts.authority.to_account_info(),
                     to: ctx.accounts.vault.to_account_info(),
-                    authority: ctx.accounts.authority.to_account_info(),
-                },
-            ),
+                }, &[vault_seeds]),
+            rent.minimum_balance(TOKEN_ACCOUNT_SIZE), TOKEN_ACCOUNT_SIZE as u64, &ctx.accounts.token_program.key(),
+        )?;
+        token::initialize_account(
+            CpiContext::new(ctx.accounts.token_program.to_account_info(),
+                InitializeAccount {
+                    account: ctx.accounts.vault.to_account_info(),
+                    mint: ctx.accounts.collateral_mint.to_account_info(),
+                    authority: ctx.accounts.market.to_account_info(),
+                    rent: ctx.accounts.rent.to_account_info(),
+                }),
+        )?;
+
+        // Transfer initial liquidity
+        token::transfer(
+            CpiContext::new(ctx.accounts.token_program.to_account_info(), Transfer {
+                from: ctx.accounts.authority_collateral.to_account_info(),
+                to: ctx.accounts.vault.to_account_info(),
+                authority: ctx.accounts.authority.to_account_info(),
+            }),
             initial_liquidity,
         )?;
 
@@ -117,14 +165,8 @@ pub mod ghostodds {
         Ok(())
     }
 
-    pub fn buy_outcome(
-        ctx: Context<BuyOutcome>,
-        amount: u64,
-        is_yes: bool,
-        min_tokens_out: u64,
-    ) -> Result<()> {
+    pub fn buy_outcome(ctx: Context<BuyOutcome>, amount: u64, is_yes: bool, min_tokens_out: u64) -> Result<()> {
         require!(amount > 0, GhostOddsError::ZeroAmount);
-
         let market = &ctx.accounts.market;
         let clock = Clock::get()?;
         require!(market.status == STATUS_ACTIVE, GhostOddsError::MarketNotActive);
@@ -134,7 +176,6 @@ pub mod ghostodds {
             .checked_mul(market.fee_bps as u128).ok_or(GhostOddsError::MathOverflow)?
             .checked_add(9999).ok_or(GhostOddsError::MathOverflow)?
             .checked_div(10000).ok_or(GhostOddsError::MathOverflow)?) as u64;
-
         let input_after_fee = amount.checked_sub(fee).ok_or(GhostOddsError::MathOverflow)?;
         require!(input_after_fee > 0, GhostOddsError::ZeroAmount);
 
@@ -144,46 +185,30 @@ pub mod ghostodds {
             (market.yes_amount, market.no_amount)
         };
 
-        let k = (input_reserve as u128)
-            .checked_mul(output_reserve as u128).ok_or(GhostOddsError::MathOverflow)?;
-        let new_input_reserve = (input_reserve as u128)
-            .checked_add(input_after_fee as u128).ok_or(GhostOddsError::MathOverflow)?;
+        let k = (input_reserve as u128).checked_mul(output_reserve as u128).ok_or(GhostOddsError::MathOverflow)?;
+        let new_input_reserve = (input_reserve as u128).checked_add(input_after_fee as u128).ok_or(GhostOddsError::MathOverflow)?;
         let new_output_reserve = k.checked_div(new_input_reserve).ok_or(GhostOddsError::MathOverflow)?;
-        let tokens_out = ((output_reserve as u128)
-            .checked_sub(new_output_reserve).ok_or(GhostOddsError::MathOverflow)?) as u64;
+        let tokens_out = ((output_reserve as u128).checked_sub(new_output_reserve).ok_or(GhostOddsError::MathOverflow)?) as u64;
 
         require!(tokens_out > 0, GhostOddsError::ZeroAmount);
         require!(tokens_out >= min_tokens_out, GhostOddsError::SlippageExceeded);
 
-        token::transfer(
-            CpiContext::new(
-                ctx.accounts.token_program.to_account_info(),
-                Transfer {
-                    from: ctx.accounts.user_collateral.to_account_info(),
-                    to: ctx.accounts.vault.to_account_info(),
-                    authority: ctx.accounts.user.to_account_info(),
-                },
-            ),
-            amount,
-        )?;
+        token::transfer(CpiContext::new(ctx.accounts.token_program.to_account_info(), Transfer {
+            from: ctx.accounts.user_collateral.to_account_info(),
+            to: ctx.accounts.vault.to_account_info(),
+            authority: ctx.accounts.user.to_account_info(),
+        }), amount)?;
 
         let market_id_bytes = market.market_id.to_le_bytes();
         let signer_seeds: &[&[&[u8]]] = &[&[b"market", market_id_bytes.as_ref(), &[market.bump]]];
-
         let (mint_info, dest_info) = if is_yes {
             (ctx.accounts.yes_mint.to_account_info(), ctx.accounts.user_yes_tokens.to_account_info())
         } else {
             (ctx.accounts.no_mint.to_account_info(), ctx.accounts.user_no_tokens.to_account_info())
         };
-
-        token::mint_to(
-            CpiContext::new_with_signer(
-                ctx.accounts.token_program.to_account_info(),
-                MintTo { mint: mint_info, to: dest_info, authority: ctx.accounts.market.to_account_info() },
-                signer_seeds,
-            ),
-            tokens_out,
-        )?;
+        token::mint_to(CpiContext::new_with_signer(ctx.accounts.token_program.to_account_info(),
+            MintTo { mint: mint_info, to: dest_info, authority: ctx.accounts.market.to_account_info() }, signer_seeds),
+            tokens_out)?;
 
         let market = &mut ctx.accounts.market;
         if is_yes {
@@ -207,25 +232,12 @@ pub mod ghostodds {
         position.total_deposited = position.total_deposited.checked_add(amount).ok_or(GhostOddsError::MathOverflow)?;
         position.bump = ctx.bumps.user_position;
 
-        emit!(OutcomePurchased {
-            market_id: market.market_id,
-            user: ctx.accounts.user.key(),
-            is_yes,
-            amount_in: amount,
-            tokens_out,
-            fee,
-        });
+        emit!(OutcomePurchased { market_id: market.market_id, user: ctx.accounts.user.key(), is_yes, amount_in: amount, tokens_out, fee });
         Ok(())
     }
 
-    pub fn sell_outcome(
-        ctx: Context<SellOutcome>,
-        amount: u64,
-        is_yes: bool,
-        min_collateral_out: u64,
-    ) -> Result<()> {
+    pub fn sell_outcome(ctx: Context<SellOutcome>, amount: u64, is_yes: bool, min_collateral_out: u64) -> Result<()> {
         require!(amount > 0, GhostOddsError::ZeroAmount);
-
         let market = &ctx.accounts.market;
         let clock = Clock::get()?;
         require!(market.status == STATUS_ACTIVE, GhostOddsError::MarketNotActive);
@@ -246,7 +258,6 @@ pub mod ghostodds {
             .checked_mul(market.fee_bps as u128).ok_or(GhostOddsError::MathOverflow)?
             .checked_add(9999).ok_or(GhostOddsError::MathOverflow)?
             .checked_div(10000).ok_or(GhostOddsError::MathOverflow)?) as u64;
-
         let collateral_out = collateral_before_fee.checked_sub(fee).ok_or(GhostOddsError::MathOverflow)?;
         require!(collateral_out > 0, GhostOddsError::ZeroAmount);
         require!(collateral_out >= min_collateral_out, GhostOddsError::SlippageExceeded);
@@ -256,30 +267,16 @@ pub mod ghostodds {
         } else {
             (ctx.accounts.no_mint.to_account_info(), ctx.accounts.user_no_tokens.to_account_info())
         };
-
-        token::burn(
-            CpiContext::new(
-                ctx.accounts.token_program.to_account_info(),
-                Burn { mint: mint_info, from: from_info, authority: ctx.accounts.user.to_account_info() },
-            ),
-            amount,
-        )?;
+        token::burn(CpiContext::new(ctx.accounts.token_program.to_account_info(),
+            Burn { mint: mint_info, from: from_info, authority: ctx.accounts.user.to_account_info() }), amount)?;
 
         let market_id_bytes = market.market_id.to_le_bytes();
         let signer_seeds: &[&[&[u8]]] = &[&[b"market", market_id_bytes.as_ref(), &[market.bump]]];
-
-        token::transfer(
-            CpiContext::new_with_signer(
-                ctx.accounts.token_program.to_account_info(),
-                Transfer {
-                    from: ctx.accounts.vault.to_account_info(),
-                    to: ctx.accounts.user_collateral.to_account_info(),
-                    authority: ctx.accounts.market.to_account_info(),
-                },
-                signer_seeds,
-            ),
-            collateral_out,
-        )?;
+        token::transfer(CpiContext::new_with_signer(ctx.accounts.token_program.to_account_info(), Transfer {
+            from: ctx.accounts.vault.to_account_info(),
+            to: ctx.accounts.user_collateral.to_account_info(),
+            authority: ctx.accounts.market.to_account_info(),
+        }, signer_seeds), collateral_out)?;
 
         let market = &mut ctx.accounts.market;
         if is_yes {
@@ -299,14 +296,7 @@ pub mod ghostodds {
         }
         position.total_withdrawn = position.total_withdrawn.checked_add(collateral_out).ok_or(GhostOddsError::MathOverflow)?;
 
-        emit!(OutcomeSold {
-            market_id: market.market_id,
-            user: ctx.accounts.user.key(),
-            is_yes,
-            tokens_in: amount,
-            collateral_out,
-            fee,
-        });
+        emit!(OutcomeSold { market_id: market.market_id, user: ctx.accounts.user.key(), is_yes, tokens_in: amount, collateral_out, fee });
         Ok(())
     }
 
@@ -316,11 +306,9 @@ pub mod ghostodds {
         require!(market.status == STATUS_ACTIVE || market.status == 1, GhostOddsError::MarketNotActive);
         require!(clock.unix_timestamp >= market.expires_at, GhostOddsError::MarketNotExpired);
         require!(ctx.accounts.authority.key() == market.authority, GhostOddsError::Unauthorized);
-
         market.outcome = Some(outcome);
         market.resolved_at = Some(clock.unix_timestamp);
         market.status = STATUS_RESOLVED;
-
         emit!(MarketResolved { market_id: market.market_id, outcome, resolved_at: clock.unix_timestamp });
         Ok(())
     }
@@ -329,18 +317,11 @@ pub mod ghostodds {
         let market = &ctx.accounts.market;
         require!(market.status == STATUS_RESOLVED, GhostOddsError::MarketNotResolved);
         let outcome = market.outcome.ok_or(GhostOddsError::MarketNotResolved)?;
-
-        let winning_amount = if outcome {
-            ctx.accounts.user_yes_tokens.amount
-        } else {
-            ctx.accounts.user_no_tokens.amount
-        };
+        let winning_amount = if outcome { ctx.accounts.user_yes_tokens.amount } else { ctx.accounts.user_no_tokens.amount };
         require!(winning_amount > 0, GhostOddsError::NoWinnings);
-
         let total_winning_supply = if outcome { ctx.accounts.yes_mint.supply } else { ctx.accounts.no_mint.supply };
         let vault_balance = ctx.accounts.vault.amount;
-        let payout = ((winning_amount as u128)
-            .checked_mul(vault_balance as u128).ok_or(GhostOddsError::MathOverflow)?
+        let payout = ((winning_amount as u128).checked_mul(vault_balance as u128).ok_or(GhostOddsError::MathOverflow)?
             .checked_div(total_winning_supply as u128).ok_or(GhostOddsError::MathOverflow)?) as u64;
         require!(payout > 0, GhostOddsError::NoWinnings);
 
@@ -349,35 +330,19 @@ pub mod ghostodds {
         } else {
             (ctx.accounts.no_mint.to_account_info(), ctx.accounts.user_no_tokens.to_account_info())
         };
-
-        token::burn(
-            CpiContext::new(
-                ctx.accounts.token_program.to_account_info(),
-                Burn { mint: mint_info, from: from_info, authority: ctx.accounts.user.to_account_info() },
-            ),
-            winning_amount,
-        )?;
+        token::burn(CpiContext::new(ctx.accounts.token_program.to_account_info(),
+            Burn { mint: mint_info, from: from_info, authority: ctx.accounts.user.to_account_info() }), winning_amount)?;
 
         let market_id_bytes = market.market_id.to_le_bytes();
         let signer_seeds: &[&[&[u8]]] = &[&[b"market", market_id_bytes.as_ref(), &[market.bump]]];
-
-        token::transfer(
-            CpiContext::new_with_signer(
-                ctx.accounts.token_program.to_account_info(),
-                Transfer {
-                    from: ctx.accounts.vault.to_account_info(),
-                    to: ctx.accounts.user_collateral.to_account_info(),
-                    authority: ctx.accounts.market.to_account_info(),
-                },
-                signer_seeds,
-            ),
-            payout,
-        )?;
+        token::transfer(CpiContext::new_with_signer(ctx.accounts.token_program.to_account_info(), Transfer {
+            from: ctx.accounts.vault.to_account_info(), to: ctx.accounts.user_collateral.to_account_info(),
+            authority: ctx.accounts.market.to_account_info(),
+        }, signer_seeds), payout)?;
 
         let position = &mut ctx.accounts.user_position;
         if outcome { position.yes_tokens = 0; } else { position.no_tokens = 0; }
         position.total_withdrawn = position.total_withdrawn.checked_add(payout).ok_or(GhostOddsError::MathOverflow)?;
-
         emit!(WinningsRedeemed { market_id: market.market_id, user: ctx.accounts.user.key(), payout });
         Ok(())
     }
@@ -395,61 +360,48 @@ pub mod ghostodds {
     pub fn redeem_cancelled(ctx: Context<RedeemCancelled>) -> Result<()> {
         let market = &ctx.accounts.market;
         require!(market.status == STATUS_CANCELLED, GhostOddsError::MarketNotCancelled);
-
         let yes_amount = ctx.accounts.user_yes_tokens.amount;
         let no_amount = ctx.accounts.user_no_tokens.amount;
         require!(yes_amount > 0 || no_amount > 0, GhostOddsError::NoWinnings);
 
         if yes_amount > 0 {
             token::burn(CpiContext::new(ctx.accounts.token_program.to_account_info(), Burn {
-                mint: ctx.accounts.yes_mint.to_account_info(),
-                from: ctx.accounts.user_yes_tokens.to_account_info(),
+                mint: ctx.accounts.yes_mint.to_account_info(), from: ctx.accounts.user_yes_tokens.to_account_info(),
                 authority: ctx.accounts.user.to_account_info(),
             }), yes_amount)?;
         }
         if no_amount > 0 {
             token::burn(CpiContext::new(ctx.accounts.token_program.to_account_info(), Burn {
-                mint: ctx.accounts.no_mint.to_account_info(),
-                from: ctx.accounts.user_no_tokens.to_account_info(),
+                mint: ctx.accounts.no_mint.to_account_info(), from: ctx.accounts.user_no_tokens.to_account_info(),
                 authority: ctx.accounts.user.to_account_info(),
             }), no_amount)?;
         }
 
         ctx.accounts.yes_mint.reload()?;
         ctx.accounts.no_mint.reload()?;
-
-        let total_tokens = ctx.accounts.yes_mint.supply
-            .checked_add(yes_amount).ok_or(GhostOddsError::MathOverflow)?
+        let total_tokens = ctx.accounts.yes_mint.supply.checked_add(yes_amount).ok_or(GhostOddsError::MathOverflow)?
             .checked_add(ctx.accounts.no_mint.supply).ok_or(GhostOddsError::MathOverflow)?
             .checked_add(no_amount).ok_or(GhostOddsError::MathOverflow)?;
         let user_tokens = yes_amount.checked_add(no_amount).ok_or(GhostOddsError::MathOverflow)?;
-
         ctx.accounts.vault.reload()?;
         let vault_balance = ctx.accounts.vault.amount;
-        let refund = ((user_tokens as u128)
-            .checked_mul(vault_balance as u128).ok_or(GhostOddsError::MathOverflow)?
+        let refund = ((user_tokens as u128).checked_mul(vault_balance as u128).ok_or(GhostOddsError::MathOverflow)?
             .checked_div(total_tokens as u128).ok_or(GhostOddsError::MathOverflow)?) as u64;
         require!(refund > 0, GhostOddsError::NoWinnings);
 
         let market_id_bytes = market.market_id.to_le_bytes();
         let signer_seeds: &[&[&[u8]]] = &[&[b"market", market_id_bytes.as_ref(), &[market.bump]]];
-
-        token::transfer(
-            CpiContext::new_with_signer(ctx.accounts.token_program.to_account_info(), Transfer {
-                from: ctx.accounts.vault.to_account_info(),
-                to: ctx.accounts.user_collateral.to_account_info(),
-                authority: ctx.accounts.market.to_account_info(),
-            }, signer_seeds),
-            refund,
-        )?;
+        token::transfer(CpiContext::new_with_signer(ctx.accounts.token_program.to_account_info(), Transfer {
+            from: ctx.accounts.vault.to_account_info(), to: ctx.accounts.user_collateral.to_account_info(),
+            authority: ctx.accounts.market.to_account_info(),
+        }, signer_seeds), refund)?;
 
         emit!(CancelledRedeemed { market_id: market.market_id, user: ctx.accounts.user.key(), refund });
         Ok(())
     }
 }
 
-// ============ Account Structures ============
-
+// ============ Accounts ============
 #[account]
 pub struct Platform {
     pub authority: Pubkey,
@@ -508,25 +460,23 @@ pub struct UserPosition {
 }
 impl UserPosition { pub const LEN: usize = 8 + 32 + 8 + 8 + 8 + 8 + 8 + 1; }
 
-// ============ Instruction Contexts ============
-
+// ============ Contexts ============
 #[derive(Accounts)]
 pub struct InitializePlatform<'info> {
     #[account(init, payer = authority, space = Platform::LEN, seeds = [b"platform"], bump)]
-    pub platform: Box<Account<'info, Platform>>,
+    pub platform: Account<'info, Platform>,
     #[account(mut)]
     pub authority: Signer<'info>,
-    /// CHECK: Treasury wallet address provided by admin
+    /// CHECK: Treasury address
     pub treasury: UncheckedAccount<'info>,
     pub system_program: Program<'info, System>,
 }
 
 #[derive(Accounts)]
+#[instruction(question: String, description: String, category: String, resolution_source: String, resolution_value: Option<u64>, resolution_operator: u8, expires_at: i64, initial_liquidity: u64)]
 pub struct CreateMarket<'info> {
     #[account(
-        mut,
-        seeds = [b"platform"],
-        bump = platform.bump,
+        mut, seeds = [b"platform"], bump = platform.bump,
         constraint = platform.authority == authority.key() @ GhostOddsError::Unauthorized,
     )]
     pub platform: Box<Account<'info, Platform>>,
@@ -535,25 +485,16 @@ pub struct CreateMarket<'info> {
         seeds = [b"market", platform.market_count.to_le_bytes().as_ref()], bump,
     )]
     pub market: Box<Account<'info, Market>>,
-    #[account(
-        init, payer = authority,
-        mint::decimals = 6, mint::authority = market,
-        seeds = [b"yes_mint", platform.market_count.to_le_bytes().as_ref()], bump,
-    )]
-    pub yes_mint: Box<Account<'info, Mint>>,
-    #[account(
-        init, payer = authority,
-        mint::decimals = 6, mint::authority = market,
-        seeds = [b"no_mint", platform.market_count.to_le_bytes().as_ref()], bump,
-    )]
-    pub no_mint: Box<Account<'info, Mint>>,
+    /// CHECK: YES mint PDA, created via CPI
+    #[account(mut, seeds = [b"yes_mint", platform.market_count.to_le_bytes().as_ref()], bump)]
+    pub yes_mint: UncheckedAccount<'info>,
+    /// CHECK: NO mint PDA, created via CPI
+    #[account(mut, seeds = [b"no_mint", platform.market_count.to_le_bytes().as_ref()], bump)]
+    pub no_mint: UncheckedAccount<'info>,
     pub collateral_mint: Box<Account<'info, Mint>>,
-    #[account(
-        init, payer = authority,
-        token::mint = collateral_mint, token::authority = market,
-        seeds = [b"vault", platform.market_count.to_le_bytes().as_ref()], bump,
-    )]
-    pub vault: Box<Account<'info, TokenAccount>>,
+    /// CHECK: Vault PDA, created via CPI
+    #[account(mut, seeds = [b"vault", platform.market_count.to_le_bytes().as_ref()], bump)]
+    pub vault: UncheckedAccount<'info>,
     #[account(
         mut,
         constraint = authority_collateral.mint == collateral_mint.key() @ GhostOddsError::Unauthorized,
@@ -704,26 +645,16 @@ pub struct RedeemCancelled<'info> {
 }
 
 // ============ Events ============
-
-#[event]
-pub struct PlatformInitialized { pub authority: Pubkey, pub fee_bps: u16, pub treasury: Pubkey }
-#[event]
-pub struct MarketCreated { pub market_id: u64, pub question: String, pub expires_at: i64, pub initial_liquidity: u64 }
-#[event]
-pub struct OutcomePurchased { pub market_id: u64, pub user: Pubkey, pub is_yes: bool, pub amount_in: u64, pub tokens_out: u64, pub fee: u64 }
-#[event]
-pub struct OutcomeSold { pub market_id: u64, pub user: Pubkey, pub is_yes: bool, pub tokens_in: u64, pub collateral_out: u64, pub fee: u64 }
-#[event]
-pub struct MarketResolved { pub market_id: u64, pub outcome: bool, pub resolved_at: i64 }
-#[event]
-pub struct WinningsRedeemed { pub market_id: u64, pub user: Pubkey, pub payout: u64 }
-#[event]
-pub struct MarketCancelled { pub market_id: u64 }
-#[event]
-pub struct CancelledRedeemed { pub market_id: u64, pub user: Pubkey, pub refund: u64 }
+#[event] pub struct PlatformInitialized { pub authority: Pubkey, pub fee_bps: u16, pub treasury: Pubkey }
+#[event] pub struct MarketCreated { pub market_id: u64, pub question: String, pub expires_at: i64, pub initial_liquidity: u64 }
+#[event] pub struct OutcomePurchased { pub market_id: u64, pub user: Pubkey, pub is_yes: bool, pub amount_in: u64, pub tokens_out: u64, pub fee: u64 }
+#[event] pub struct OutcomeSold { pub market_id: u64, pub user: Pubkey, pub is_yes: bool, pub tokens_in: u64, pub collateral_out: u64, pub fee: u64 }
+#[event] pub struct MarketResolved { pub market_id: u64, pub outcome: bool, pub resolved_at: i64 }
+#[event] pub struct WinningsRedeemed { pub market_id: u64, pub user: Pubkey, pub payout: u64 }
+#[event] pub struct MarketCancelled { pub market_id: u64 }
+#[event] pub struct CancelledRedeemed { pub market_id: u64, pub user: Pubkey, pub refund: u64 }
 
 // ============ Errors ============
-
 #[error_code]
 pub enum GhostOddsError {
     #[msg("Fee exceeds maximum allowed")] FeeTooHigh,
