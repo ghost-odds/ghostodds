@@ -1,6 +1,9 @@
-node_modules/\n.anchor/\ntarget/\n.next/\n.env*\n*.log\ndist/
+node_modules/
+.anchor/
 target/
+.next/
+.env*
+*.log
+dist/
 app/node_modules/
 app/.next/
-node_modules/
-target/

@@ -1,21 +1,20 @@
 [toolchain]
-package_manager = "yarn"
 
 [features]
 resolution = true
 skip-lint = false
 
-[programs.localnet]
-ghostodds = "5Q7Te3WTbG1Gm17GtPv61ddu3dVB7BqcvGM4S6LN6BZo"
-
 [programs.devnet]
+ghostodds = "FU64EotiwqACVJ9hyhH6XA9iiqQKmWjmPTUmSF1i3ar9"
+
+[programs.localnet]
 ghostodds = "5Q7Te3WTbG1Gm17GtPv61ddu3dVB7BqcvGM4S6LN6BZo"
 
 [registry]
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "localnet"
+cluster = "Localnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
