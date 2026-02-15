@@ -39,6 +39,8 @@ describe("ghostodds", () => {
   let authorityCollateral: PublicKey;
   let platformPda: PublicKey;
   let platformBump: number;
+  let treasuryKeypair: Keypair;
+  let treasuryTokenAccount: PublicKey;
 
   const user = Keypair.generate();
   const FEE_BPS = 200;
@@ -81,22 +83,28 @@ describe("ghostodds", () => {
     authorityCollateral = await createRawTokenAccount(provider.connection, authority.payer, collateralMint, authority.publicKey);
     await mintTo(provider.connection, authority.payer, collateralMint, authorityCollateral, authority.publicKey, 100_000_000);
 
+    // Create treasury token account
+    treasuryKeypair = Keypair.generate();
+    await provider.connection.requestAirdrop(treasuryKeypair.publicKey, 1_000_000_000)
+      .then(sig => provider.connection.confirmTransaction(sig));
+    treasuryTokenAccount = await createRawTokenAccount(provider.connection, authority.payer, collateralMint, treasuryKeypair.publicKey);
+
     [platformPda, platformBump] = PublicKey.findProgramAddressSync([Buffer.from("platform")], program.programId);
   });
 
   describe("1. Platform Initialization", () => {
     it("initializes the platform", async () => {
-      const treasury = Keypair.generate();
       await program.methods.initializePlatform(FEE_BPS)
         .accounts({
           platform: platformPda, authority: authority.publicKey,
-          treasury: treasury.publicKey, systemProgram: SystemProgram.programId,
+          treasury: treasuryTokenAccount, systemProgram: SystemProgram.programId,
         }).rpc();
 
       const p = await program.account.platform.fetch(platformPda);
       expect(p.authority.toString()).to.equal(authority.publicKey.toString());
       expect(p.marketCount.toNumber()).to.equal(0);
       expect(p.feeBps).to.equal(FEE_BPS);
+      expect(p.treasury.toString()).to.equal(treasuryTokenAccount.toString());
     });
 
     it("rejects duplicate init", async () => {
@@ -142,10 +150,13 @@ describe("ghostodds", () => {
   });
 
   describe("3. Buy YES tokens", () => {
-    it("buys YES tokens", async () => {
+    it("buys YES tokens and fees reach treasury", async () => {
+      const treasuryBefore = await getAccount(provider.connection, treasuryTokenAccount);
+
       await program.methods.buyOutcome(new anchor.BN(100_000), true, new anchor.BN(0))
         .accounts({
-          market: m0.market, yesMint: m0.yesMint, noMint: m0.noMint, vault: m0.vault,
+          market: m0.market, platform: platformPda, yesMint: m0.yesMint, noMint: m0.noMint,
+          vault: m0.vault, treasury: treasuryTokenAccount,
           userCollateral: userCollateral0, userYesTokens: userYes0, userNoTokens: userNo0,
           userPosition: userPos0, user: user.publicKey,
           tokenProgram: TOKEN_PROGRAM_ID, systemProgram: SystemProgram.programId,
@@ -153,6 +164,12 @@ describe("ghostodds", () => {
 
       const ya = await getAccount(provider.connection, userYes0);
       expect(Number(ya.amount)).to.be.greaterThan(0);
+
+      // Verify fee reached treasury
+      const treasuryAfter = await getAccount(provider.connection, treasuryTokenAccount);
+      const feeReceived = Number(treasuryAfter.amount) - Number(treasuryBefore.amount);
+      // Fee = ceil(100_000 * 200 / 10000) = 2000
+      expect(feeReceived).to.equal(2000);
     });
   });
 
@@ -160,7 +177,8 @@ describe("ghostodds", () => {
     it("buys NO tokens", async () => {
       await program.methods.buyOutcome(new anchor.BN(100_000), false, new anchor.BN(0))
         .accounts({
-          market: m0.market, yesMint: m0.yesMint, noMint: m0.noMint, vault: m0.vault,
+          market: m0.market, platform: platformPda, yesMint: m0.yesMint, noMint: m0.noMint,
+          vault: m0.vault, treasury: treasuryTokenAccount,
           userCollateral: userCollateral0, userYesTokens: userYes0, userNoTokens: userNo0,
           userPosition: userPos0, user: user.publicKey,
           tokenProgram: TOKEN_PROGRAM_ID, systemProgram: SystemProgram.programId,
@@ -172,20 +190,26 @@ describe("ghostodds", () => {
   });
 
   describe("5. Sell YES tokens", () => {
-    it("sells YES tokens and receives collateral", async () => {
+    it("sells YES tokens and fees reach treasury", async () => {
       const yesBefore = await getAccount(provider.connection, userYes0);
       const colBefore = await getAccount(provider.connection, userCollateral0);
+      const treasuryBefore = await getAccount(provider.connection, treasuryTokenAccount);
       const sellAmount = new anchor.BN(Math.floor(Number(yesBefore.amount) / 2));
 
       await program.methods.sellOutcome(sellAmount, true, new anchor.BN(0))
         .accounts({
-          market: m0.market, yesMint: m0.yesMint, noMint: m0.noMint, vault: m0.vault,
+          market: m0.market, platform: platformPda, yesMint: m0.yesMint, noMint: m0.noMint,
+          vault: m0.vault, treasury: treasuryTokenAccount,
           userCollateral: userCollateral0, userYesTokens: userYes0, userNoTokens: userNo0,
           userPosition: userPos0, user: user.publicKey, tokenProgram: TOKEN_PROGRAM_ID,
         }).signers([user]).rpc();
 
       const colAfter = await getAccount(provider.connection, userCollateral0);
       expect(Number(colAfter.amount)).to.be.greaterThan(Number(colBefore.amount));
+
+      // Verify sell fee reached treasury
+      const treasuryAfter = await getAccount(provider.connection, treasuryTokenAccount);
+      expect(Number(treasuryAfter.amount)).to.be.greaterThan(Number(treasuryBefore.amount));
     });
   });
 
@@ -196,7 +220,8 @@ describe("ghostodds", () => {
 
       await program.methods.sellOutcome(sellAmount, false, new anchor.BN(0))
         .accounts({
-          market: m0.market, yesMint: m0.yesMint, noMint: m0.noMint, vault: m0.vault,
+          market: m0.market, platform: platformPda, yesMint: m0.yesMint, noMint: m0.noMint,
+          vault: m0.vault, treasury: treasuryTokenAccount,
           userCollateral: userCollateral0, userYesTokens: userYes0, userNoTokens: userNo0,
           userPosition: userPos0, user: user.publicKey, tokenProgram: TOKEN_PROGRAM_ID,
         }).signers([user]).rpc();
@@ -218,7 +243,7 @@ describe("ghostodds", () => {
     it("rejects resolution before expiry", async () => {
       try {
         await program.methods.resolveMarket(true)
-          .accounts({ market: m0.market, authority: authority.publicKey }).rpc();
+          .accounts({ market: m0.market, resolver: authority.publicKey, pythPriceAccount: null }).rpc();
         expect.fail("Should throw");
       } catch (err: any) {
         expect(err.toString()).to.include("MarketNotExpired");
@@ -226,11 +251,11 @@ describe("ghostodds", () => {
     });
   });
 
-  describe("9. Cannot resolve by non-authority", () => {
+  describe("9. Cannot resolve by non-authority (within grace period)", () => {
     it("rejects resolution by non-authority", async () => {
       try {
         await program.methods.resolveMarket(true)
-          .accounts({ market: m0.market, authority: user.publicKey }).signers([user]).rpc();
+          .accounts({ market: m0.market, resolver: user.publicKey, pythPriceAccount: null }).signers([user]).rpc();
         expect.fail("Should throw");
       } catch (err: any) {
         expect(err.toString()).to.include("Error");
@@ -293,7 +318,8 @@ describe("ghostodds", () => {
       try {
         await program.methods.buyOutcome(new anchor.BN(0), true, new anchor.BN(0))
           .accounts({
-            market: m0.market, yesMint: m0.yesMint, noMint: m0.noMint, vault: m0.vault,
+            market: m0.market, platform: platformPda, yesMint: m0.yesMint, noMint: m0.noMint,
+            vault: m0.vault, treasury: treasuryTokenAccount,
             userCollateral: userCollateral0, userYesTokens: userYes0, userNoTokens: userNo0,
             userPosition: userPos0, user: user.publicKey,
             tokenProgram: TOKEN_PROGRAM_ID, systemProgram: SystemProgram.programId,
@@ -310,7 +336,8 @@ describe("ghostodds", () => {
       try {
         await program.methods.buyOutcome(new anchor.BN(1000), true, new anchor.BN(999_999_999))
           .accounts({
-            market: m0.market, yesMint: m0.yesMint, noMint: m0.noMint, vault: m0.vault,
+            market: m0.market, platform: platformPda, yesMint: m0.yesMint, noMint: m0.noMint,
+            vault: m0.vault, treasury: treasuryTokenAccount,
             userCollateral: userCollateral0, userYesTokens: userYes0, userNoTokens: userNo0,
             userPosition: userPos0, user: user.publicKey,
             tokenProgram: TOKEN_PROGRAM_ID, systemProgram: SystemProgram.programId,
@@ -319,6 +346,13 @@ describe("ghostodds", () => {
       } catch (err: any) {
         expect(err.toString()).to.include("SlippageExceeded");
       }
+    });
+  });
+
+  describe("15. Platform volume tracking", () => {
+    it("platform total_volume is incremented", async () => {
+      const p = await program.account.platform.fetch(platformPda);
+      expect(p.totalVolume.toNumber()).to.be.greaterThan(0);
     });
   });
 });

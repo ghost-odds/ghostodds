@@ -1,6 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_lang::system_program;
 use anchor_spl::token::{self, Burn, InitializeAccount, InitializeMint, Mint, MintTo, Token, TokenAccount, Transfer};
+use pyth_sdk_solana::state::SolanaPriceAccount;
 
 declare_id!("FU64EotiwqACVJ9hyhH6XA9iiqQKmWjmPTUmSF1i3ar9");
 
@@ -18,6 +19,16 @@ const STATUS_CANCELLED: u8 = 3;
 
 const MINT_SIZE: usize = 82;
 const TOKEN_ACCOUNT_SIZE: usize = 165;
+
+/// Grace period after expiry during which only the authority can resolve.
+/// After this period, anyone can resolve using a Pyth oracle.
+const RESOLUTION_GRACE_PERIOD: i64 = 86400; // 24 hours
+
+/// Maximum staleness for Pyth price data (seconds).
+const PYTH_MAX_STALENESS: u64 = 300; // 5 minutes
+
+/// Maximum confidence interval as basis points of price.
+const PYTH_MAX_CONF_BPS: u64 = 500; // 5%
 
 #[program]
 pub mod ghostodds {
@@ -193,11 +204,21 @@ pub mod ghostodds {
         require!(tokens_out > 0, GhostOddsError::ZeroAmount);
         require!(tokens_out >= min_tokens_out, GhostOddsError::SlippageExceeded);
 
+        // Transfer net amount (after fee) to vault
         token::transfer(CpiContext::new(ctx.accounts.token_program.to_account_info(), Transfer {
             from: ctx.accounts.user_collateral.to_account_info(),
             to: ctx.accounts.vault.to_account_info(),
             authority: ctx.accounts.user.to_account_info(),
-        }), amount)?;
+        }), input_after_fee)?;
+
+        // Transfer fee directly to treasury
+        if fee > 0 {
+            token::transfer(CpiContext::new(ctx.accounts.token_program.to_account_info(), Transfer {
+                from: ctx.accounts.user_collateral.to_account_info(),
+                to: ctx.accounts.treasury.to_account_info(),
+                authority: ctx.accounts.user.to_account_info(),
+            }), fee)?;
+        }
 
         let market_id_bytes = market.market_id.to_le_bytes();
         let signer_seeds: &[&[&[u8]]] = &[&[b"market", market_id_bytes.as_ref(), &[market.bump]]];
@@ -218,8 +239,12 @@ pub mod ghostodds {
             market.yes_amount = new_input_reserve as u64;
             market.no_amount = new_output_reserve as u64;
         }
-        market.total_liquidity = market.total_liquidity.checked_add(amount).ok_or(GhostOddsError::MathOverflow)?;
+        market.total_liquidity = market.total_liquidity.checked_add(input_after_fee).ok_or(GhostOddsError::MathOverflow)?;
         market.volume = market.volume.checked_add(amount).ok_or(GhostOddsError::MathOverflow)?;
+
+        // Finding 6: increment platform total_volume
+        let platform = &mut ctx.accounts.platform;
+        platform.total_volume = platform.total_volume.checked_add(amount).ok_or(GhostOddsError::MathOverflow)?;
 
         let position = &mut ctx.accounts.user_position;
         position.user = ctx.accounts.user.key();
@@ -272,11 +297,22 @@ pub mod ghostodds {
 
         let market_id_bytes = market.market_id.to_le_bytes();
         let signer_seeds: &[&[&[u8]]] = &[&[b"market", market_id_bytes.as_ref(), &[market.bump]]];
+
+        // Transfer collateral to user
         token::transfer(CpiContext::new_with_signer(ctx.accounts.token_program.to_account_info(), Transfer {
             from: ctx.accounts.vault.to_account_info(),
             to: ctx.accounts.user_collateral.to_account_info(),
             authority: ctx.accounts.market.to_account_info(),
         }, signer_seeds), collateral_out)?;
+
+        // Transfer fee from vault to treasury
+        if fee > 0 {
+            token::transfer(CpiContext::new_with_signer(ctx.accounts.token_program.to_account_info(), Transfer {
+                from: ctx.accounts.vault.to_account_info(),
+                to: ctx.accounts.treasury.to_account_info(),
+                authority: ctx.accounts.market.to_account_info(),
+            }, signer_seeds), fee)?;
+        }
 
         let market = &mut ctx.accounts.market;
         if is_yes {
@@ -287,6 +323,13 @@ pub mod ghostodds {
             market.yes_amount = new_output_reserve as u64;
         }
         market.volume = market.volume.checked_add(collateral_before_fee).ok_or(GhostOddsError::MathOverflow)?;
+
+        // Finding 7: decrement total_liquidity on sell
+        market.total_liquidity = market.total_liquidity.checked_sub(collateral_out).ok_or(GhostOddsError::MathOverflow)?;
+
+        // Finding 6: increment platform total_volume
+        let platform = &mut ctx.accounts.platform;
+        platform.total_volume = platform.total_volume.checked_add(collateral_before_fee).ok_or(GhostOddsError::MathOverflow)?;
 
         let position = &mut ctx.accounts.user_position;
         if is_yes {
@@ -303,13 +346,100 @@ pub mod ghostodds {
     pub fn resolve_market(ctx: Context<ResolveMarket>, outcome: bool) -> Result<()> {
         let market = &mut ctx.accounts.market;
         let clock = Clock::get()?;
-        require!(market.status == STATUS_ACTIVE || market.status == 1, GhostOddsError::MarketNotActive);
+
+        // Finding 4: remove status == 1 reference (never set)
+        require!(market.status == STATUS_ACTIVE, GhostOddsError::MarketNotActive);
         require!(clock.unix_timestamp >= market.expires_at, GhostOddsError::MarketNotExpired);
-        require!(ctx.accounts.authority.key() == market.authority, GhostOddsError::Unauthorized);
-        market.outcome = Some(outcome);
+
+        let grace_deadline = market.expires_at
+            .checked_add(RESOLUTION_GRACE_PERIOD)
+            .ok_or(GhostOddsError::MathOverflow)?;
+        let within_grace = clock.unix_timestamp < grace_deadline;
+
+        // Within grace period: only authority can resolve
+        // After grace period: anyone can resolve (permissionless fallback)
+        if within_grace {
+            require!(
+                ctx.accounts.resolver.key() == market.authority,
+                GhostOddsError::Unauthorized
+            );
+        }
+
+        // Determine outcome: use oracle for markets with resolution_value, manual otherwise
+        let resolved_outcome = if let Some(resolution_value) = market.resolution_value {
+            // Oracle-resolved market: require Pyth price account
+            let pyth_info = ctx.accounts.pyth_price_account
+                .as_ref()
+                .ok_or(GhostOddsError::OracleRequired)?;
+
+            // Validate owner is the Pyth v2 program
+            let pyth_program_id: Pubkey = "FsJ3A3u2vn5cTVofAjvy6y5kwABJAqYWpe4975bi2epH"
+                .parse().unwrap();
+            require!(
+                *pyth_info.owner == pyth_program_id,
+                GhostOddsError::InvalidOracle
+            );
+
+            let price_feed = SolanaPriceAccount::account_info_to_feed(&pyth_info)
+                .map_err(|_| GhostOddsError::InvalidOracle)?;
+            let current_price = price_feed
+                .get_price_no_older_than(clock.unix_timestamp, PYTH_MAX_STALENESS)
+                .ok_or(GhostOddsError::StalePriceData)?;
+
+            // Validate confidence: conf / |price| <= 5%
+            let abs_price = (current_price.price as i128).unsigned_abs();
+            require!(abs_price > 0, GhostOddsError::InvalidOracle);
+            let conf_bps = (current_price.conf as u128)
+                .checked_mul(10000)
+                .ok_or(GhostOddsError::MathOverflow)?
+                .checked_div(abs_price)
+                .ok_or(GhostOddsError::MathOverflow)?;
+            require!(conf_bps <= PYTH_MAX_CONF_BPS as u128, GhostOddsError::PriceConfidenceTooWide);
+
+            // Normalize price to compare with resolution_value (u64, 6 decimals assumed)
+            let exponent = current_price.expo;
+            let raw_price = current_price.price;
+            require!(raw_price > 0, GhostOddsError::InvalidOracle);
+
+            let normalized_price: u64 = if exponent >= 0 {
+                (raw_price as u128)
+                    .checked_mul(10u128.pow(6u32.checked_add(exponent as u32).ok_or(GhostOddsError::MathOverflow)?))
+                    .ok_or(GhostOddsError::MathOverflow)? as u64
+            } else {
+                let neg_exp = (-exponent) as u32;
+                if neg_exp <= 6 {
+                    (raw_price as u128)
+                        .checked_mul(10u128.pow(6 - neg_exp))
+                        .ok_or(GhostOddsError::MathOverflow)? as u64
+                } else {
+                    (raw_price as u128)
+                        .checked_div(10u128.pow(neg_exp - 6))
+                        .ok_or(GhostOddsError::MathOverflow)? as u64
+                }
+            };
+
+            // Compare using resolution_operator: 0 = >=, 1 = <=, 2 = ==
+            match market.resolution_operator {
+                0 => normalized_price >= resolution_value,
+                1 => normalized_price <= resolution_value,
+                2 => normalized_price == resolution_value,
+                _ => return Err(GhostOddsError::InvalidOperator.into()),
+            }
+        } else {
+            // Manual resolution: only authority can resolve (no permissionless fallback)
+            if !within_grace {
+                require!(
+                    ctx.accounts.resolver.key() == market.authority,
+                    GhostOddsError::Unauthorized
+                );
+            }
+            outcome
+        };
+
+        market.outcome = Some(resolved_outcome);
         market.resolved_at = Some(clock.unix_timestamp);
         market.status = STATUS_RESOLVED;
-        emit!(MarketResolved { market_id: market.market_id, outcome, resolved_at: clock.unix_timestamp });
+        emit!(MarketResolved { market_id: market.market_id, outcome: resolved_outcome, resolved_at: clock.unix_timestamp });
         Ok(())
     }
 
@@ -350,7 +480,8 @@ pub mod ghostodds {
     pub fn cancel_market(ctx: Context<CancelMarket>) -> Result<()> {
         let market = &mut ctx.accounts.market;
         require!(ctx.accounts.authority.key() == market.authority, GhostOddsError::Unauthorized);
-        require!(market.status == STATUS_ACTIVE || market.status == 1, GhostOddsError::MarketNotActive);
+        // Finding 4: remove status == 1 reference
+        require!(market.status == STATUS_ACTIVE, GhostOddsError::MarketNotActive);
         require!(market.outcome.is_none(), GhostOddsError::AlreadyResolved);
         market.status = STATUS_CANCELLED;
         emit!(MarketCancelled { market_id: market.market_id });
@@ -512,12 +643,22 @@ pub struct CreateMarket<'info> {
 pub struct BuyOutcome<'info> {
     #[account(mut, seeds = [b"market", market.market_id.to_le_bytes().as_ref()], bump = market.bump)]
     pub market: Box<Account<'info, Market>>,
+    #[account(
+        mut, seeds = [b"platform"], bump = platform.bump,
+    )]
+    pub platform: Box<Account<'info, Platform>>,
     #[account(mut, constraint = yes_mint.key() == market.yes_mint @ GhostOddsError::Unauthorized)]
     pub yes_mint: Box<Account<'info, Mint>>,
     #[account(mut, constraint = no_mint.key() == market.no_mint @ GhostOddsError::Unauthorized)]
     pub no_mint: Box<Account<'info, Mint>>,
     #[account(mut, constraint = vault.key() == market.vault @ GhostOddsError::Unauthorized)]
     pub vault: Box<Account<'info, TokenAccount>>,
+    #[account(
+        mut,
+        constraint = treasury.mint == market.collateral_mint @ GhostOddsError::Unauthorized,
+        constraint = treasury.key() == platform.treasury @ GhostOddsError::Unauthorized,
+    )]
+    pub treasury: Box<Account<'info, TokenAccount>>,
     #[account(mut,
         constraint = user_collateral.mint == market.collateral_mint @ GhostOddsError::Unauthorized,
         constraint = user_collateral.owner == user.key() @ GhostOddsError::Unauthorized)]
@@ -545,12 +686,22 @@ pub struct BuyOutcome<'info> {
 pub struct SellOutcome<'info> {
     #[account(mut, seeds = [b"market", market.market_id.to_le_bytes().as_ref()], bump = market.bump)]
     pub market: Box<Account<'info, Market>>,
+    #[account(
+        mut, seeds = [b"platform"], bump = platform.bump,
+    )]
+    pub platform: Box<Account<'info, Platform>>,
     #[account(mut, constraint = yes_mint.key() == market.yes_mint @ GhostOddsError::Unauthorized)]
     pub yes_mint: Box<Account<'info, Mint>>,
     #[account(mut, constraint = no_mint.key() == market.no_mint @ GhostOddsError::Unauthorized)]
     pub no_mint: Box<Account<'info, Mint>>,
     #[account(mut, constraint = vault.key() == market.vault @ GhostOddsError::Unauthorized)]
     pub vault: Box<Account<'info, TokenAccount>>,
+    #[account(
+        mut,
+        constraint = treasury.mint == market.collateral_mint @ GhostOddsError::Unauthorized,
+        constraint = treasury.key() == platform.treasury @ GhostOddsError::Unauthorized,
+    )]
+    pub treasury: Box<Account<'info, TokenAccount>>,
     #[account(mut,
         constraint = user_collateral.mint == market.collateral_mint @ GhostOddsError::Unauthorized,
         constraint = user_collateral.owner == user.key() @ GhostOddsError::Unauthorized)]
@@ -576,7 +727,9 @@ pub struct SellOutcome<'info> {
 pub struct ResolveMarket<'info> {
     #[account(mut, seeds = [b"market", market.market_id.to_le_bytes().as_ref()], bump = market.bump)]
     pub market: Box<Account<'info, Market>>,
-    pub authority: Signer<'info>,
+    pub resolver: Signer<'info>,
+    /// CHECK: Optional Pyth price feed account, validated in instruction logic
+    pub pyth_price_account: Option<UncheckedAccount<'info>>,
 }
 
 #[derive(Accounts)]
@@ -675,4 +828,8 @@ pub enum GhostOddsError {
     #[msg("No winnings to redeem")] NoWinnings,
     #[msg("Market is already resolved")] AlreadyResolved,
     #[msg("Market is not cancelled")] MarketNotCancelled,
+    #[msg("Invalid oracle account")] InvalidOracle,
+    #[msg("Price data is stale")] StalePriceData,
+    #[msg("Price confidence interval too wide")] PriceConfidenceTooWide,
+    #[msg("Oracle price account required for oracle-resolved markets")] OracleRequired,
 }
