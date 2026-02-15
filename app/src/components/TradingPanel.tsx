@@ -1,35 +1,73 @@
 "use client";
 
 import { useState } from "react";
+import { useWallet } from "@solana/wallet-adapter-react";
 import { cn } from "@/lib/utils";
 import { Market, Side } from "@/lib/types";
-import { AlertTriangle, Loader2 } from "lucide-react";
+import { addPosition, generateTxSignature } from "@/lib/positions-store";
+import { AlertTriangle, Loader2, Wallet } from "lucide-react";
+import { useToast } from "./Toast";
 
 const QUICK_AMOUNTS = [10, 25, 50, 100, 250];
 const FEE_RATE = 0.02;
 
 export function TradingPanel({ market }: { market: Market }) {
+  const { connected } = useWallet();
+  const { toast } = useToast();
   const [side, setSide] = useState<Side>("YES");
   const [amount, setAmount] = useState<string>("");
   const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
+  const [loadingText, setLoadingText] = useState("");
 
   const price = side === "YES" ? market.yesPrice : market.noPrice;
   const amountNum = parseFloat(amount) || 0;
   const shares = amountNum > 0 ? amountNum / price : 0;
   const fee = amountNum * FEE_RATE;
-  const potentialPayout = shares * 1; // $1 per share if correct
-  const slippage = amountNum > 100 ? ((amountNum / market.liquidity) * 100) : 0;
+  const potentialPayout = shares * 1;
+  const slippage = amountNum > 100 ? (amountNum / market.liquidity) * 100 : 0;
+  const netCost = amountNum + fee;
+  const returnPct = amountNum > 0 ? ((potentialPayout - netCost) / netCost) * 100 : 0;
 
   const handleTrade = async () => {
     if (amountNum <= 0) return;
+
+    if (!connected) {
+      toast("Connect your wallet to trade", "error");
+      return;
+    }
+
     setLoading(true);
-    // Simulate transaction
-    await new Promise((r) => setTimeout(r, 1500));
+    setLoadingText("Submitting...");
+
+    // Simulate realistic tx flow
+    await new Promise((r) => setTimeout(r, 800));
+    setLoadingText("Confirming...");
+    await new Promise((r) => setTimeout(r, 1200));
+
+    const txSig = generateTxSignature();
+
+    // Save position to localStorage
+    addPosition({
+      marketId: market.id,
+      question: market.question,
+      side,
+      shares: Math.round(shares * 100) / 100,
+      avgPrice: price,
+      currentPrice: price,
+      pnl: 0,
+      resolved: false,
+      claimable: false,
+    });
+
     setLoading(false);
-    setSuccess(true);
-    setTimeout(() => setSuccess(false), 3000);
+    setLoadingText("");
     setAmount("");
+
+    toast(
+      `Bought ${Math.round(shares)} ${side} shares`,
+      "success",
+      `Tx: ${txSig.slice(0, 8)}...${txSig.slice(-8)}`
+    );
   };
 
   return (
@@ -48,7 +86,7 @@ export function TradingPanel({ market }: { market: Market }) {
                 : "bg-transparent text-text-secondary hover:text-text-primary"
             )}
           >
-            {s}
+            {s} — {Math.round((s === "YES" ? market.yesPrice : market.noPrice) * 100)}¢
           </button>
         ))}
       </div>
@@ -95,16 +133,35 @@ export function TradingPanel({ market }: { market: Market }) {
           <span className="text-text-secondary">Potential Payout</span>
           <span className="font-mono text-success">${potentialPayout.toFixed(2)}</span>
         </div>
+        {amountNum > 0 && (
+          <div className="flex justify-between">
+            <span className="text-text-secondary">Return</span>
+            <span className="font-mono text-success">+{returnPct.toFixed(0)}%</span>
+          </div>
+        )}
         <div className="flex justify-between">
           <span className="text-text-secondary">Fee (2%)</span>
           <span className="font-mono text-text-muted">${fee.toFixed(2)}</span>
         </div>
+        {amountNum > 0 && (
+          <div className="flex justify-between border-t border-border/50 pt-2">
+            <span className="text-text-secondary font-medium">Total Cost</span>
+            <span className="font-mono text-text-primary font-semibold">${netCost.toFixed(2)}</span>
+          </div>
+        )}
       </div>
 
       {slippage > 2 && (
         <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-warning/10 border border-warning/30 rounded-lg text-warning text-xs">
           <AlertTriangle className="w-4 h-4 shrink-0" />
           <span>Estimated slippage: {slippage.toFixed(1)}%</span>
+        </div>
+      )}
+
+      {!connected && (
+        <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-primary/10 border border-primary/30 rounded-lg text-primary text-xs">
+          <Wallet className="w-4 h-4 shrink-0" />
+          <span>Connect wallet to place trades</span>
         </div>
       )}
 
@@ -117,9 +174,10 @@ export function TradingPanel({ market }: { market: Market }) {
         )}
       >
         {loading ? (
-          <Loader2 className="w-5 h-5 animate-spin mx-auto" />
-        ) : success ? (
-          "✓ Trade Placed!"
+          <span className="flex items-center justify-center gap-2">
+            <Loader2 className="w-5 h-5 animate-spin" />
+            {loadingText}
+          </span>
         ) : (
           `Buy ${side} — $${amountNum.toFixed(2)}`
         )}

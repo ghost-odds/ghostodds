@@ -1,19 +1,83 @@
 "use client";
 
-import { MOCK_POSITIONS } from "@/lib/mock-data";
+import { useState, useEffect } from "react";
+import { useWallet } from "@solana/wallet-adapter-react";
+import { getPositions, claimPosition } from "@/lib/positions-store";
+import { getMarketById } from "@/lib/mock-data";
+import { Position } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { TrendingUp, TrendingDown, Wallet } from "lucide-react";
+import { TrendingUp, TrendingDown, Wallet, RefreshCw } from "lucide-react";
+import { useToast } from "@/components/Toast";
 import Link from "next/link";
 
 export default function PortfolioPage() {
-  const active = MOCK_POSITIONS.filter((p) => !p.resolved);
-  const resolved = MOCK_POSITIONS.filter((p) => p.resolved);
-  const totalPnl = MOCK_POSITIONS.reduce((sum, p) => sum + p.pnl, 0);
-  const totalValue = MOCK_POSITIONS.reduce((sum, p) => sum + p.shares * p.currentPrice, 0);
+  const { connected } = useWallet();
+  const { toast } = useToast();
+  const [positions, setPositions] = useState<Position[]>([]);
+  const [claiming, setClaiming] = useState<number | null>(null);
+
+  useEffect(() => {
+    const load = () => {
+      const stored = getPositions();
+      // Update current prices from mock data
+      const updated = stored.map((p) => {
+        const market = getMarketById(p.marketId);
+        if (!market) return p;
+        const currentPrice = p.side === "YES" ? market.yesPrice : market.noPrice;
+        const pnl = p.shares * (currentPrice - p.avgPrice);
+        return { ...p, currentPrice, pnl: Math.round(pnl * 100) / 100 };
+      });
+      setPositions(updated);
+    };
+    load();
+    // Refresh on focus (in case trades made on other pages)
+    window.addEventListener("focus", load);
+    return () => window.removeEventListener("focus", load);
+  }, []);
+
+  const active = positions.filter((p) => !p.resolved);
+  const resolved = positions.filter((p) => p.resolved || p.claimable);
+  const totalPnl = positions.reduce((sum, p) => sum + p.pnl, 0);
+  const totalValue = positions.reduce((sum, p) => sum + p.shares * p.currentPrice, 0);
+
+  const handleClaim = async (marketId: number) => {
+    setClaiming(marketId);
+    await new Promise((r) => setTimeout(r, 1500));
+    const updated = claimPosition(marketId);
+    setPositions(updated);
+    setClaiming(null);
+    toast("Position claimed!", "success", "Funds returned to wallet");
+  };
+
+  if (!connected) {
+    return (
+      <div>
+        <h1 className="text-2xl font-bold text-text-primary mb-6">Portfolio</h1>
+        <div className="bg-surface border border-border rounded-xl p-10 text-center">
+          <Wallet className="w-8 h-8 text-text-muted mx-auto mb-3" />
+          <p className="text-text-secondary mb-2">Connect your wallet to view positions</p>
+          <p className="text-xs text-text-muted">Your demo trades will appear here</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-text-primary mb-6">Portfolio</h1>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold text-text-primary">Portfolio</h1>
+        <button
+          onClick={() => {
+            const stored = getPositions();
+            setPositions(stored);
+            toast("Positions refreshed", "info");
+          }}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-text-secondary hover:text-text-primary rounded-lg hover:bg-surface transition-colors cursor-pointer"
+        >
+          <RefreshCw className="w-4 h-4" />
+          Refresh
+        </button>
+      </div>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
@@ -44,7 +108,7 @@ export default function PortfolioPage() {
         <div className="bg-surface border border-border rounded-xl p-10 text-center mb-8">
           <Wallet className="w-8 h-8 text-text-muted mx-auto mb-3" />
           <p className="text-text-secondary">No active positions. Start trading!</p>
-          <Link href="/" className="inline-block mt-3 text-primary text-sm hover:text-primary-hover">
+          <Link href="/demo" className="inline-block mt-3 text-primary text-sm hover:text-primary-hover">
             Browse Markets →
           </Link>
         </div>
@@ -64,7 +128,7 @@ export default function PortfolioPage() {
               </thead>
               <tbody>
                 {active.map((pos) => (
-                  <tr key={pos.marketId} className="border-b border-border/50 hover:bg-surface-elevated transition-colors">
+                  <tr key={`${pos.marketId}-${pos.side}`} className="border-b border-border/50 hover:bg-surface-elevated transition-colors">
                     <td className="px-4 py-3">
                       <Link href={`/market/${pos.marketId}`} className="text-text-primary hover:text-primary transition-colors">
                         {pos.question.length > 45 ? pos.question.slice(0, 45) + "..." : pos.question}
@@ -75,7 +139,7 @@ export default function PortfolioPage() {
                         {pos.side}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-right font-mono text-text-primary">{pos.shares}</td>
+                    <td className="px-4 py-3 text-right font-mono text-text-primary">{pos.shares.toFixed(1)}</td>
                     <td className="px-4 py-3 text-right font-mono text-text-secondary">{Math.round(pos.avgPrice * 100)}¢</td>
                     <td className="px-4 py-3 text-right font-mono text-text-primary">{Math.round(pos.currentPrice * 100)}¢</td>
                     <td className={cn("px-4 py-3 text-right font-mono font-semibold", pos.pnl >= 0 ? "text-success" : "text-danger")}>
@@ -97,8 +161,12 @@ export default function PortfolioPage() {
             {resolved.map((pos) => (
               <div key={pos.marketId} className="flex items-center justify-between px-4 py-3 border-b border-border/50 last:border-0">
                 <span className="text-text-primary text-sm">{pos.question}</span>
-                <button className="px-4 py-1.5 bg-success text-white text-xs font-semibold rounded-lg hover:bg-success/90 transition-colors cursor-pointer">
-                  Claim ${pos.payout?.toFixed(2)}
+                <button
+                  onClick={() => handleClaim(pos.marketId)}
+                  disabled={claiming === pos.marketId}
+                  className="px-4 py-1.5 bg-success text-white text-xs font-semibold rounded-lg hover:bg-success/90 transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  {claiming === pos.marketId ? "Claiming..." : `Claim $${(pos.shares * 1).toFixed(2)}`}
                 </button>
               </div>
             ))}

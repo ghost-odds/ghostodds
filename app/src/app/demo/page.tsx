@@ -1,10 +1,14 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { Search, TrendingUp, Clock, Flame, LayoutGrid, Coins, Zap } from "lucide-react";
+import { useState, useMemo, useEffect } from "react";
+import { useWallet } from "@solana/wallet-adapter-react";
+import { useConnection } from "@solana/wallet-adapter-react";
+import { LAMPORTS_PER_SOL } from "@solana/web3.js";
+import { Search, TrendingUp, Clock, Flame, LayoutGrid, Coins, Zap, Droplets } from "lucide-react";
 import { MOCK_MARKETS } from "@/lib/mock-data";
 import { MarketCard } from "@/components/MarketCard";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/components/Toast";
 
 const filters = [
   { key: "all", label: "All", icon: LayoutGrid },
@@ -14,17 +18,66 @@ const filters = [
   { key: "ending", label: "Ending Soon", icon: Clock },
 ];
 
+function MarketCardSkeleton() {
+  return (
+    <div className="bg-surface border border-border rounded-xl p-5 h-[180px] animate-pulse">
+      <div className="flex justify-between mb-3">
+        <div className="w-16 h-5 bg-border rounded-full" />
+        <div className="w-20 h-4 bg-border rounded" />
+      </div>
+      <div className="w-full h-4 bg-border rounded mb-2" />
+      <div className="w-3/4 h-4 bg-border rounded mb-6" />
+      <div className="flex justify-between items-end">
+        <div>
+          <div className="w-12 h-3 bg-border rounded mb-1" />
+          <div className="w-16 h-8 bg-border rounded" />
+        </div>
+        <div className="w-20 h-4 bg-border rounded" />
+      </div>
+    </div>
+  );
+}
+
 export default function DemoPage() {
+  const { publicKey, connected } = useWallet();
+  const { connection } = useConnection();
+  const { toast } = useToast();
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
-  const [airdropped, setAirdropped] = useState(false);
   const [airdropping, setAirdropping] = useState(false);
+  const [solBalance, setSolBalance] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // Simulate initial load
+  useEffect(() => {
+    const timer = setTimeout(() => setLoading(false), 1200);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Fetch balance
+  useEffect(() => {
+    if (!publicKey) { setSolBalance(null); return; }
+    connection.getBalance(publicKey).then((b) => setSolBalance(b / LAMPORTS_PER_SOL)).catch(() => {});
+  }, [publicKey, connection]);
 
   const handleAirdrop = async () => {
+    if (!publicKey) {
+      toast("Connect your wallet first", "error");
+      return;
+    }
     setAirdropping(true);
-    await new Promise((r) => setTimeout(r, 2000));
-    setAirdropping(false);
-    setAirdropped(true);
+    try {
+      const sig = await connection.requestAirdrop(publicKey, 2 * LAMPORTS_PER_SOL);
+      await connection.confirmTransaction(sig);
+      const newBalance = await connection.getBalance(publicKey);
+      setSolBalance(newBalance / LAMPORTS_PER_SOL);
+      toast("Airdrop successful!", "success", "2 SOL received on devnet");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Airdrop failed";
+      toast("Airdrop failed", "error", msg.includes("limit") ? "Rate limited — try again in a minute" : msg);
+    } finally {
+      setAirdropping(false);
+    }
   };
 
   const markets = useMemo(() => {
@@ -46,43 +99,56 @@ export default function DemoPage() {
   return (
     <div>
       {/* Demo Banner */}
-      <div className="bg-gradient-to-r from-primary/20 via-primary/10 to-success/10 border border-primary/30 rounded-xl p-4 sm:p-5 mb-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <span className="text-2xl">🔮</span>
-          <div>
-            <h2 className="text-sm font-semibold text-text-primary">Demo Mode</h2>
-            <p className="text-xs text-text-secondary">
-              Explore GhostOdds with devnet tokens. All trades are simulated on Solana devnet.
-            </p>
+      <div className="bg-gradient-to-r from-primary/20 via-primary/10 to-success/10 border border-primary/30 rounded-xl p-4 sm:p-5 mb-8">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">🔮</span>
+            <div>
+              <h2 className="text-sm font-semibold text-text-primary">
+                Demo Mode — Trading on Solana Devnet
+              </h2>
+              <p className="text-xs text-text-secondary">
+                All trades are simulated. Connect a wallet and get devnet tokens to explore.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {connected && solBalance !== null && (
+              <span className="text-xs font-mono text-text-secondary px-3 py-2 bg-surface rounded-lg border border-border">
+                {solBalance.toFixed(2)} SOL
+              </span>
+            )}
+            <button
+              onClick={handleAirdrop}
+              disabled={airdropping || !connected}
+              className={cn(
+                "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-150 active:scale-[0.98] cursor-pointer shrink-0 disabled:opacity-50 disabled:cursor-not-allowed",
+                "bg-primary hover:bg-primary-hover text-white"
+              )}
+            >
+              {airdropping ? (
+                <>
+                  <Zap className="w-4 h-4 animate-pulse" />
+                  Airdropping...
+                </>
+              ) : (
+                <>
+                  <Coins className="w-4 h-4" />
+                  Airdrop 2 SOL
+                </>
+              )}
+            </button>
+            <a
+              href="https://spl-token-faucet.com/?token-name=USDC"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold border border-primary/50 text-primary hover:bg-primary/10 transition-colors cursor-pointer"
+            >
+              <Droplets className="w-4 h-4" />
+              Get Devnet USDC
+            </a>
           </div>
         </div>
-        <button
-          onClick={handleAirdrop}
-          disabled={airdropping || airdropped}
-          className={cn(
-            "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-150 active:scale-[0.98] cursor-pointer shrink-0",
-            airdropped
-              ? "bg-success/20 text-success border border-success/30"
-              : "bg-primary hover:bg-primary-hover text-white"
-          )}
-        >
-          {airdropping ? (
-            <>
-              <Zap className="w-4 h-4 animate-pulse" />
-              Airdropping...
-            </>
-          ) : airdropped ? (
-            <>
-              <Coins className="w-4 h-4" />
-              1,000 USDC Received!
-            </>
-          ) : (
-            <>
-              <Coins className="w-4 h-4" />
-              Airdrop Devnet USDC
-            </>
-          )}
-        </button>
       </div>
 
       {/* Hero */}
@@ -129,9 +195,10 @@ export default function DemoPage() {
 
       {/* Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {markets.map((market) => (
-          <MarketCard key={market.id} market={market} />
-        ))}
+        {loading
+          ? Array.from({ length: 6 }).map((_, i) => <MarketCardSkeleton key={i} />)
+          : markets.map((market) => <MarketCard key={market.id} market={market} />)
+        }
       </div>
     </div>
   );

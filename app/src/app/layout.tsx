@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Navbar } from "@/components/Navbar";
+import { WalletProviderWrapper } from "@/components/WalletProvider";
+import { ToastProvider } from "@/components/Toast";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -28,10 +30,14 @@ export default function RootLayout({
       <body
         className={`${inter.variable} ${jetbrainsMono.variable} antialiased min-h-screen`}
       >
-        <Navbar />
-        <main className="max-w-[1280px] mx-auto px-4 sm:px-6 pt-20 pb-12">
-          {children}
-        </main>
+        <WalletProviderWrapper>
+          <ToastProvider>
+            <Navbar />
+            <main className="max-w-[1280px] mx-auto px-4 sm:px-6 pt-20 pb-12">
+              {children}
+            </main>
+          </ToastProvider>
+        </WalletProviderWrapper>
       </body>
     </html>
   );
