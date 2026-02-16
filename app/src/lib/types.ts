@@ -1,12 +1,13 @@
-export type MarketStatus = "active" | "resolved" | "expired";
+export type MarketStatus = "active" | "resolved" | "cancelled" | "expired";
 export type MarketCategory = "Crypto" | "DeFi" | "NFTs" | "Other";
 export type Side = "YES" | "NO";
 
 export interface Market {
   id: number;
+  publicKey?: string;
   question: string;
   description: string;
-  category: MarketCategory;
+  category: string;
   yesPrice: number;
   noPrice: number;
   volume: number;
@@ -15,8 +16,17 @@ export interface Market {
   createdAt: string;
   status: MarketStatus;
   resolutionSource: string;
-  priceHistory: PricePoint[];
-  recentTrades: Trade[];
+  resolutionValue?: number | null;
+  resolutionOperator?: number;
+  outcome?: boolean | null;
+  feeBps?: number;
+  yesAmount?: number;
+  noAmount?: number;
+  yesMint?: string;
+  noMint?: string;
+  vault?: string;
+  collateralMint?: string;
+  authority?: string;
 }
 
 export interface PricePoint {
@@ -45,4 +55,8 @@ export interface Position {
   resolved: boolean;
   claimable: boolean;
   payout?: number;
+  yesTokens?: number;
+  noTokens?: number;
+  totalDeposited?: number;
+  totalWithdrawn?: number;
 }

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Clock, BarChart2 } from "lucide-react";
 import { Market } from "@/lib/types";
-import { formatUSD, formatTimeRemaining } from "@/lib/mock-data";
+import { formatUSD, formatTimeRemaining } from "@/lib/format";
 
 const categoryColors: Record<string, string> = {
   Crypto: "bg-primary/20 text-primary",

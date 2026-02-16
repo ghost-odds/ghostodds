@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Search, TrendingUp, Clock, Flame, LayoutGrid } from "lucide-react";
-import { MOCK_MARKETS } from "@/lib/mock-data";
+import { Search, TrendingUp, Clock, Flame, LayoutGrid, Loader2, AlertCircle, Ghost } from "lucide-react";
+import { useMarkets } from "@/lib/useMarkets";
 import { MarketCard } from "@/components/MarketCard";
 import { cn } from "@/lib/utils";
 
@@ -21,14 +21,14 @@ const sortOptions = [
 ];
 
 export default function HomePage() {
+  const { markets: allMarkets, loading, error } = useMarkets();
   const [filter, setFilter] = useState("all");
   const [sort, setSort] = useState("volume");
   const [search, setSearch] = useState("");
 
   const markets = useMemo(() => {
-    let filtered = [...MOCK_MARKETS];
+    let filtered = [...allMarkets];
 
-    // Search
     if (search) {
       const q = search.toLowerCase();
       filtered = filtered.filter(
@@ -36,7 +36,6 @@ export default function HomePage() {
       );
     }
 
-    // Filter
     if (filter === "Crypto" || filter === "DeFi") {
       filtered = filtered.filter((m) => m.category === filter);
     } else if (filter === "trending") {
@@ -47,13 +46,12 @@ export default function HomePage() {
         .sort((a, b) => new Date(a.expiresAt).getTime() - new Date(b.expiresAt).getTime());
     }
 
-    // Sort
     if (sort === "volume") filtered.sort((a, b) => b.volume - a.volume);
     else if (sort === "newest") filtered.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     else if (sort === "ending") filtered.sort((a, b) => new Date(a.expiresAt).getTime() - new Date(b.expiresAt).getTime());
 
     return filtered;
-  }, [filter, sort, search]);
+  }, [allMarkets, filter, sort, search]);
 
   return (
     <div>
@@ -65,12 +63,6 @@ export default function HomePage() {
         <p className="text-text-secondary text-lg max-w-xl mx-auto mb-8">
           Decentralized prediction markets on Solana. Trade outcomes on crypto prices, DeFi metrics, and more.
         </p>
-        <a
-          href="/demo"
-          className="inline-flex items-center gap-2 px-6 py-3 bg-primary hover:bg-primary-hover text-white font-semibold rounded-lg transition-all duration-150 active:scale-[0.98]"
-        >
-          Try Demo Mode
-        </a>
       </div>
 
       {/* Filters */}
@@ -121,16 +113,44 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* Market Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {markets.map((market) => (
-          <MarketCard key={market.id} market={market} />
-        ))}
-      </div>
+      {/* Loading State */}
+      {loading && allMarkets.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-20">
+          <Loader2 className="w-8 h-8 text-primary animate-spin mb-4" />
+          <p className="text-text-secondary">Loading markets from Solana devnet...</p>
+        </div>
+      )}
 
-      {markets.length === 0 && (
+      {/* Error State */}
+      {error && allMarkets.length === 0 && !loading && (
+        <div className="flex flex-col items-center justify-center py-20">
+          <AlertCircle className="w-8 h-8 text-danger mb-4" />
+          <p className="text-text-secondary mb-2">Failed to load markets</p>
+          <p className="text-xs text-text-muted">{error}</p>
+        </div>
+      )}
+
+      {/* Market Grid */}
+      {!loading && markets.length > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {markets.map((market) => (
+            <MarketCard key={market.id} market={market} />
+          ))}
+        </div>
+      )}
+
+      {/* Empty State */}
+      {!loading && !error && allMarkets.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-20">
+          <Ghost className="w-12 h-12 text-text-muted mb-4" />
+          <p className="text-text-secondary text-lg mb-2">No markets yet</p>
+          <p className="text-text-muted text-sm">Markets will appear here once created on-chain.</p>
+        </div>
+      )}
+
+      {!loading && markets.length === 0 && allMarkets.length > 0 && (
         <div className="text-center py-20 text-text-muted">
-          No markets found.
+          No markets match your search.
         </div>
       )}
     </div>

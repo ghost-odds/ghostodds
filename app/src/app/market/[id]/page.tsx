@@ -1,17 +1,35 @@
 "use client";
 
 import { use } from "react";
-import { notFound } from "next/navigation";
-import { ArrowLeft, ExternalLink, Clock, BarChart2, Droplets, Calendar } from "lucide-react";
+import { ArrowLeft, ExternalLink, Clock, BarChart2, Droplets, Calendar, Loader2, AlertCircle } from "lucide-react";
 import Link from "next/link";
-import { getMarketById, formatUSD, formatTimeRemaining } from "@/lib/mock-data";
+import { useMarket } from "@/lib/useMarkets";
+import { formatUSD, formatTimeRemaining } from "@/lib/format";
 import { TradingPanel } from "@/components/TradingPanel";
-import { PriceChart } from "@/components/PriceChart";
 
 export default function MarketDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const market = getMarketById(parseInt(id));
-  if (!market) notFound();
+  const { market, loading, error } = useMarket(parseInt(id));
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20">
+        <Loader2 className="w-8 h-8 text-primary animate-spin mb-4" />
+        <p className="text-text-secondary">Loading market data...</p>
+      </div>
+    );
+  }
+
+  if (error || !market) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20">
+        <AlertCircle className="w-8 h-8 text-danger mb-4" />
+        <p className="text-text-secondary mb-2">Market not found</p>
+        <p className="text-xs text-text-muted mb-4">{error || "This market doesn't exist on-chain."}</p>
+        <Link href="/" className="text-primary text-sm hover:text-primary-hover">← Back to Markets</Link>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -35,6 +53,15 @@ export default function MarketDetailPage({ params }: { params: Promise<{ id: str
                 <Clock className="w-3 h-3" />
                 {formatTimeRemaining(market.expiresAt)}
               </span>
+              {market.status !== "active" && (
+                <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                  market.status === "resolved" ? "bg-success/20 text-success" :
+                  market.status === "cancelled" ? "bg-danger/20 text-danger" :
+                  "bg-warning/20 text-warning"
+                }`}>
+                  {market.status.toUpperCase()}
+                </span>
+              )}
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold text-text-primary mb-3">
               {market.question}
@@ -44,8 +71,23 @@ export default function MarketDetailPage({ params }: { params: Promise<{ id: str
             </p>
           </div>
 
-          {/* Price Chart */}
-          <PriceChart data={market.priceHistory} />
+          {/* Price Display */}
+          <div className="bg-surface border border-border rounded-xl p-6">
+            <div className="grid grid-cols-2 gap-8">
+              <div className="text-center">
+                <div className="text-xs text-text-muted mb-2">YES Price</div>
+                <div className="text-4xl font-mono font-bold text-success">
+                  {Math.round(market.yesPrice * 100)}¢
+                </div>
+              </div>
+              <div className="text-center">
+                <div className="text-xs text-text-muted mb-2">NO Price</div>
+                <div className="text-4xl font-mono font-bold text-danger">
+                  {Math.round(market.noPrice * 100)}¢
+                </div>
+              </div>
+            </div>
+          </div>
 
           {/* Market Info */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -67,41 +109,47 @@ export default function MarketDetailPage({ params }: { params: Promise<{ id: str
 
           {/* Resolution Source */}
           <div className="bg-surface border border-border rounded-xl p-4">
-            <h3 className="text-sm font-semibold text-text-primary mb-2">Resolution Source</h3>
-            <div className="flex items-center gap-2 text-sm text-text-secondary">
-              <ExternalLink className="w-4 h-4" />
-              {market.resolutionSource}
+            <h3 className="text-sm font-semibold text-text-primary mb-2">Resolution Details</h3>
+            <div className="space-y-2 text-sm text-text-secondary">
+              <div className="flex items-center gap-2">
+                <ExternalLink className="w-4 h-4" />
+                {market.resolutionSource}
+              </div>
+              {market.resolutionValue != null && (
+                <div className="text-xs text-text-muted">
+                  Target: {market.resolutionOperator === 0 ? "≥" : market.resolutionOperator === 1 ? "≤" : "="}{" "}
+                  ${market.resolutionValue.toLocaleString()}
+                </div>
+              )}
+              {market.outcome != null && (
+                <div className={`text-xs font-semibold ${market.outcome ? "text-success" : "text-danger"}`}>
+                  Resolved: {market.outcome ? "YES" : "NO"}
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Recent Trades */}
+          {/* On-chain Info */}
           <div className="bg-surface border border-border rounded-xl p-4">
-            <h3 className="text-sm font-semibold text-text-primary mb-3">Recent Trades</h3>
-            <div className="space-y-2">
-              {market.recentTrades.slice(0, 8).map((trade) => (
-                <div
-                  key={trade.id}
-                  className="flex items-center justify-between py-2 border-b border-border/50 last:border-0 text-sm"
-                >
-                  <div className="flex items-center gap-3">
-                    <span
-                      className={`font-semibold text-xs px-2 py-0.5 rounded ${
-                        trade.side === "YES"
-                          ? "bg-success/15 text-success"
-                          : "bg-danger/15 text-danger"
-                      }`}
-                    >
-                      {trade.side}
-                    </span>
-                    <span className="font-mono text-text-primary">${trade.amount}</span>
-                    <span className="text-text-muted">@ {Math.round(trade.price * 100)}¢</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-text-muted text-xs">
-                    <span className="font-mono">{trade.wallet}</span>
-                    <span>{new Date(trade.timestamp).toLocaleTimeString()}</span>
-                  </div>
+            <h3 className="text-sm font-semibold text-text-primary mb-2">On-Chain Info</h3>
+            <div className="space-y-1.5 text-xs text-text-muted font-mono">
+              {market.publicKey && (
+                <div className="flex justify-between">
+                  <span>Market PDA:</span>
+                  <a
+                    href={`https://explorer.solana.com/address/${market.publicKey}?cluster=devnet`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:text-primary-hover"
+                  >
+                    {market.publicKey.slice(0, 8)}...{market.publicKey.slice(-8)}
+                  </a>
                 </div>
-              ))}
+              )}
+              <div className="flex justify-between">
+                <span>Fee:</span>
+                <span>{(market.feeBps || 0) / 100}%</span>
+              </div>
             </div>
           </div>
         </div>
