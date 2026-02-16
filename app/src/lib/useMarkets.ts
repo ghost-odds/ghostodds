@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useConnection } from "@solana/wallet-adapter-react";
 import { fetchAllMarkets, fetchMarket, computePrices, toHuman, OnChainMarket } from "./anchor";
 import { Market, MarketStatus } from "./types";
+import { DEMO_MARKETS } from "./demo-markets";
 
 function statusFromCode(code: number): MarketStatus {
   switch (code) {
@@ -66,9 +67,14 @@ export function useMarkets() {
     setError(null);
     try {
       const onChain = await fetchAllMarkets(connection);
-      const mapped = onChain.map(mapOnChainMarket);
-      mapped.sort((a, b) => b.volume - a.volume);
-      setMarkets(mapped);
+      if (onChain.length > 0) {
+        const mapped = onChain.map(mapOnChainMarket);
+        mapped.sort((a, b) => b.volume - a.volume);
+        setMarkets(mapped);
+      } else {
+        // Show demo markets when no on-chain markets exist
+        setMarkets(DEMO_MARKETS);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to fetch markets");
       setMarkets([]);

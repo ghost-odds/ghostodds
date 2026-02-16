@@ -1,12 +1,13 @@
 "use client";
 
-// Buffer polyfill MUST be first — Anchor/web3.js need it in browser
-import { Buffer } from "buffer/";
-(globalThis as any).Buffer = Buffer;
-(typeof window !== "undefined" ? window : globalThis).Buffer = Buffer as any;
-
 import { ReactNode } from "react";
-import { WalletProviderWrapper } from "./WalletProvider";
+import dynamic from "next/dynamic";
+
+// Dynamically import wallet provider to avoid SSR hydration issues
+const WalletProviderWrapper = dynamic(
+  () => import("./WalletProvider").then((m) => m.WalletProviderWrapper),
+  { ssr: false }
+);
 
 export function ClientProviders({ children }: { children: ReactNode }) {
   return <WalletProviderWrapper>{children}</WalletProviderWrapper>;
