@@ -4,16 +4,12 @@ import { useState, useMemo } from "react";
 import { Search, TrendingUp, Clock, Flame, LayoutGrid, Loader2, AlertCircle, Ghost } from "lucide-react";
 import { useMarkets } from "@/lib/useMarkets";
 import { MarketCard } from "@/components/MarketCard";
+import { StatsBanner } from "@/components/StatsBanner";
+import { FeaturedMarket } from "@/components/FeaturedMarket";
+import { ActivityTicker } from "@/components/ActivityTicker";
+import { HowItWorks } from "@/components/HowItWorks";
 import { cn } from "@/lib/utils";
 import { GhostPattern } from "@/components/GhostPattern";
-
-const filters = [
-  { key: "all", label: "All", icon: LayoutGrid },
-  { key: "Crypto", label: "Crypto", icon: TrendingUp },
-  { key: "DeFi", label: "DeFi", icon: Flame },
-  { key: "trending", label: "Trending", icon: Flame },
-  { key: "ending", label: "Ending Soon", icon: Clock },
-];
 
 const sortOptions = [
   { key: "volume", label: "Volume" },
@@ -26,6 +22,29 @@ export default function HomePage() {
   const [filter, setFilter] = useState("all");
   const [sort, setSort] = useState("volume");
   const [search, setSearch] = useState("");
+
+  // Category counts
+  const counts = useMemo(() => {
+    const c: Record<string, number> = { all: allMarkets.length };
+    for (const m of allMarkets) c[m.category] = (c[m.category] || 0) + 1;
+    return c;
+  }, [allMarkets]);
+
+  const filters = useMemo(
+    () => [
+      { key: "all", label: `All (${counts.all || 0})`, icon: LayoutGrid },
+      { key: "Crypto", label: `Crypto (${counts.Crypto || 0})`, icon: TrendingUp },
+      { key: "DeFi", label: `DeFi (${counts.DeFi || 0})`, icon: Flame },
+      { key: "trending", label: "Trending 🔥", icon: Flame },
+      { key: "ending", label: "Ending Soon ⏰", icon: Clock },
+    ],
+    [counts]
+  );
+
+  const featuredMarket = useMemo(() => {
+    if (allMarkets.length === 0) return null;
+    return [...allMarkets].sort((a, b) => b.volume - a.volume)[0];
+  }, [allMarkets]);
 
   const markets = useMemo(() => {
     let filtered = [...allMarkets];
@@ -51,8 +70,11 @@ export default function HomePage() {
     else if (sort === "newest") filtered.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     else if (sort === "ending") filtered.sort((a, b) => new Date(a.expiresAt).getTime() - new Date(b.expiresAt).getTime());
 
+    // Exclude featured from grid
+    if (featuredMarket) filtered = filtered.filter((m) => m.id !== featuredMarket.id);
+
     return filtered;
-  }, [allMarkets, filter, sort, search]);
+  }, [allMarkets, filter, sort, search, featuredMarket]);
 
   return (
     <div>
@@ -67,6 +89,15 @@ export default function HomePage() {
         </p>
       </div>
 
+      {/* Stats Banner */}
+      <StatsBanner />
+
+      {/* Featured Market */}
+      {featuredMarket && <FeaturedMarket market={featuredMarket} />}
+
+      {/* Activity Ticker */}
+      <ActivityTicker />
+
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-4 mb-6">
         <div className="flex gap-1 flex-wrap">
@@ -75,10 +106,10 @@ export default function HomePage() {
               key={key}
               onClick={() => setFilter(key)}
               className={cn(
-                "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors cursor-pointer",
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors cursor-pointer",
                 filter === key
-                  ? "bg-primary/15 text-primary"
-                  : "text-text-secondary hover:text-text-primary hover:bg-surface"
+                  ? "bg-primary/15 text-primary border border-primary/30"
+                  : "text-text-secondary hover:text-text-primary hover:bg-surface border border-transparent"
               )}
             >
               <Icon className="w-3.5 h-3.5" />
@@ -155,6 +186,9 @@ export default function HomePage() {
           No markets match your search.
         </div>
       )}
+
+      {/* How It Works */}
+      <HowItWorks />
     </div>
   );
 }
