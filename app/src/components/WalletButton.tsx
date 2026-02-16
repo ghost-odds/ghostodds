@@ -1,20 +1,20 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useConnection } from "@solana/wallet-adapter-react";
 import { LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { Wallet, Copy, LogOut, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "./Toast";
+import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 
 export function WalletButton() {
-  const { publicKey, connected, connect, disconnect, select, wallets } = useWallet();
+  const { publicKey, connected, disconnect } = useWallet();
   const { connection } = useConnection();
   const { toast } = useToast();
   const [showDropdown, setShowDropdown] = useState(false);
   const [balance, setBalance] = useState<number | null>(null);
-  const [connecting, setConnecting] = useState(false);
 
   useEffect(() => {
     if (!publicKey) { setBalance(null); return; }
@@ -29,28 +29,6 @@ export function WalletButton() {
     return () => { cancelled = true; clearInterval(id); };
   }, [publicKey, connection]);
 
-  const handleConnect = async () => {
-    setConnecting(true);
-    try {
-      const available = wallets.find((w) => w.readyState === "Installed");
-      const walletName = available?.adapter.name || wallets[0]?.adapter.name;
-      if (walletName) {
-        select(walletName);
-        // Wait a tick for select to take effect, then connect
-        await new Promise((r) => setTimeout(r, 100));
-      }
-      await connect();
-      toast("Wallet connected", "success");
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Connection failed";
-      if (!msg.includes("rejected")) {
-        toast("Failed to connect wallet", "error", msg);
-      }
-    } finally {
-      setConnecting(false);
-    }
-  };
-
   const handleDisconnect = async () => {
     await disconnect();
     setShowDropdown(false);
@@ -62,16 +40,7 @@ export function WalletButton() {
     : "";
 
   if (!connected) {
-    return (
-      <button
-        onClick={handleConnect}
-        disabled={connecting}
-        className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary-hover text-white text-sm font-medium rounded-lg transition-all duration-150 active:scale-[0.98] cursor-pointer disabled:opacity-50"
-      >
-        <Wallet className="w-4 h-4" />
-        {connecting ? "Connecting..." : "Connect Wallet"}
-      </button>
-    );
+    return <WalletMultiButton className="!bg-primary hover:!bg-primary-hover !text-white !text-sm !font-medium !rounded-lg !transition-all !duration-150 active:!scale-[0.98] !h-auto !py-2 !px-4" />;
   }
 
   return (

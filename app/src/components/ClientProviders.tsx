@@ -2,6 +2,7 @@
 
 import { ReactNode } from "react";
 import dynamic from "next/dynamic";
+import "@solana/wallet-adapter-react-ui/styles.css";
 
 // Dynamically import wallet provider to avoid SSR hydration issues
 const WalletProviderWrapper = dynamic(
