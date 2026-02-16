@@ -36,13 +36,20 @@ interface MergedPoint {
   assetPrice?: number;
 }
 
+function formatTooltipDate(timeValue: string | number): string {
+  const d = typeof timeValue === "number" ? new Date(timeValue) : new Date(timeValue);
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + ", " +
+    d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function CustomTooltip({ active, payload }: any) {
+function CustomTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
   const prob = payload.find((p: any) => p.dataKey === "probability");
   const price = payload.find((p: any) => p.dataKey === "assetPrice");
   return (
-    <div className="bg-[#12121a] border border-[#1e1e2e] rounded-lg px-3 py-2 text-xs">
+    <div className="bg-[#12121a] border border-[#1e1e2e] rounded-lg px-3 py-2 text-xs shadow-xl">
+      {label && <div className="text-text-muted mb-1">{formatTooltipDate(label)}</div>}
       {prob && <div className="text-[#22c55e]">Probability: {Math.round(prob.value * 100)}¢</div>}
       {price && <div className="text-[#7c5cfc]">Price: ${Number(price.value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>}
     </div>
