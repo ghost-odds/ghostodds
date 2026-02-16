@@ -5,17 +5,26 @@ import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { cn } from "@/lib/utils";
 import { Market, Side } from "@/lib/types";
 import { buyOutcome, sellOutcome } from "@/lib/anchor";
-import { AlertTriangle, Loader2, Wallet, ArrowDownUp } from "lucide-react";
+import { AlertTriangle, Loader2, Wallet, DollarSign } from "lucide-react";
 import { useToast } from "./Toast";
+import { useUsdc } from "@/lib/usdc-context";
+import { usePositions } from "@/lib/positions-context";
+import Link from "next/link";
 
 const QUICK_AMOUNTS = [10, 25, 50, 100, 250];
 
 type TradeMode = "buy" | "sell";
 
+function isDemoMarket(market: Market): boolean {
+  return market.publicKey?.startsWith("demo_") ?? true;
+}
+
 export function TradingPanel({ market }: { market: Market }) {
   const { connected, publicKey, signTransaction, signAllTransactions } = useWallet();
   const { connection } = useConnection();
   const { toast } = useToast();
+  const { balance: usdcBalance, spendBalance, addBalance } = useUsdc();
+  const { positions, addPosition } = usePositions();
   const [side, setSide] = useState<Side>("YES");
   const [mode, setMode] = useState<TradeMode>("buy");
   const [amount, setAmount] = useState<string>("");
@@ -24,6 +33,10 @@ export function TradingPanel({ market }: { market: Market }) {
 
   const price = side === "YES" ? market.yesPrice : market.noPrice;
   const amountNum = parseFloat(amount) || 0;
+  const isDemo = isDemoMarket(market);
+
+  // Current position for this market+side
+  const currentPosition = positions.find(p => p.marketId === String(market.id) && p.side === side);
 
   // Estimate output from AMM
   const estimate = useMemo(() => {
@@ -47,7 +60,6 @@ export function TradingPanel({ market }: { market: Market }) {
       const slippage = price > 0 ? Math.abs(effectivePrice - price) / price * 100 : 0;
       return { tokensOut, fee: feeAmount, slippage };
     } else {
-      // Sell mode: amount is in tokens
       const [inputReserve, outputReserve] = side === "YES" ? [yesAmt, noAmt] : [noAmt, yesAmt];
       const k = inputReserve * outputReserve;
       const newInputReserve = inputReserve + amountNum;
@@ -57,11 +69,81 @@ export function TradingPanel({ market }: { market: Market }) {
       const collateralOut = collateralBefore - feeAmount;
       return { tokensOut: collateralOut, fee: feeAmount, slippage: 0 };
     }
-  }, [amountNum, market, side, mode]);
+  }, [amountNum, market, side, mode, price]);
 
   const isLocked = market.status !== "active";
 
-  const handleTrade = async () => {
+  const handleDemoTrade = () => {
+    if (amountNum <= 0) return;
+
+    if (!connected || !publicKey) {
+      toast("Connect your wallet to trade", "error");
+      return;
+    }
+
+    if (mode === "buy") {
+      if (usdcBalance < amountNum) {
+        toast("Insufficient USDC balance", "error", "Get test USDC from the portfolio page");
+        return;
+      }
+
+      const shares = price > 0 ? amountNum / price : 0;
+      const success = spendBalance(amountNum);
+      if (!success) {
+        toast("Insufficient USDC balance", "error");
+        return;
+      }
+
+      addPosition({
+        marketId: String(market.id),
+        marketQuestion: market.question,
+        side,
+        shares: Math.round(shares * 100) / 100,
+        avgPrice: price,
+      });
+
+      const totalShares = (currentPosition?.shares || 0) + shares;
+      toast(
+        `Bought ${shares.toFixed(2)} ${side} shares at ${Math.round(price * 100)}¢`,
+        "success",
+        `You now hold ${totalShares.toFixed(2)} ${side} shares`
+      );
+      setAmount("");
+    } else {
+      // Sell mode
+      if (!currentPosition || currentPosition.shares < amountNum) {
+        toast("Insufficient shares to sell", "error",
+          `You hold ${currentPosition?.shares.toFixed(2) || "0"} ${side} shares`);
+        return;
+      }
+
+      const payout = amountNum * price;
+      addBalance(payout);
+
+      // Reduce position
+      const remaining = currentPosition.shares - amountNum;
+      // We update by adding negative — but easier to just reconstruct
+      // For simplicity, clear and re-add if remaining > 0
+      // Actually, addPosition merges, so we need a different approach
+      // Let's just use addPosition with negative shares hack — no, let's compute directly
+      addPosition({
+        marketId: String(market.id),
+        marketQuestion: market.question,
+        side,
+        shares: -amountNum,
+        avgPrice: currentPosition.avgPrice,
+      });
+
+      toast(
+        `Sold ${amountNum.toFixed(2)} ${side} shares for $${payout.toFixed(2)}`,
+        "success",
+        remaining > 0 ? `You still hold ${remaining.toFixed(2)} ${side} shares` : "Position closed"
+      );
+      setAmount("");
+    }
+  };
+
+  const handleOnChainTrade = async () => {
     if (amountNum <= 0) return;
 
     if (!connected || !publicKey || !signTransaction || !signAllTransactions) {
@@ -74,7 +156,6 @@ export function TradingPanel({ market }: { market: Market }) {
 
     try {
       const wallet = { publicKey, signTransaction, signAllTransactions };
-
       let txSig: string;
 
       if (mode === "buy") {
@@ -104,6 +185,14 @@ export function TradingPanel({ market }: { market: Market }) {
     } finally {
       setLoading(false);
       setLoadingText("");
+    }
+  };
+
+  const handleTrade = () => {
+    if (isDemo) {
+      handleDemoTrade();
+    } else {
+      handleOnChainTrade();
     }
   };
 
@@ -147,9 +236,24 @@ export function TradingPanel({ market }: { market: Market }) {
         ))}
       </div>
 
+      {/* USDC Balance (demo markets) */}
+      {isDemo && connected && (
+        <div className="flex items-center justify-between mb-3 px-1">
+          <span className="text-xs text-text-muted">Balance</span>
+          <span className="text-xs font-mono text-text-secondary">${usdcBalance.toFixed(2)} USDC</span>
+        </div>
+      )}
+
+      {/* Current position indicator */}
+      {currentPosition && currentPosition.shares > 0 && (
+        <div className="mb-3 px-3 py-2 bg-primary/10 border border-primary/20 rounded-lg text-xs text-primary">
+          You hold <span className="font-mono font-semibold">{currentPosition.shares.toFixed(2)}</span> {side} shares
+        </div>
+      )}
+
       <div className="mb-4">
         <label className="text-xs text-text-muted mb-1.5 block">
-          {mode === "buy" ? "Amount (USDC)" : "Tokens to Sell"}
+          {mode === "buy" ? "Amount (USDC)" : "Shares to Sell"}
         </label>
         <input
           type="number"
@@ -187,37 +291,45 @@ export function TradingPanel({ market }: { market: Market }) {
             {Math.round(price * 100)}¢
           </span>
         </div>
-        {amountNum > 0 && (
+        {amountNum > 0 && mode === "buy" && (
           <>
             <div className="flex justify-between">
-              <span className="text-text-secondary">
-                {mode === "buy" ? "Est. Shares" : "Est. Payout"}
-              </span>
+              <span className="text-text-secondary">Est. Shares</span>
               <span className="font-mono text-text-primary">
-                {mode === "buy" ? estimate.tokensOut.toFixed(2) : `$${estimate.tokensOut.toFixed(2)}`}
+                {isDemo ? (price > 0 ? (amountNum / price).toFixed(2) : "0") : estimate.tokensOut.toFixed(2)}
               </span>
             </div>
-            {mode === "buy" && (
-              <div className="flex justify-between">
-                <span className="text-text-secondary">Potential Payout</span>
-                <span className="font-mono text-success">${estimate.tokensOut.toFixed(2)}</span>
-              </div>
-            )}
             <div className="flex justify-between">
-              <span className="text-text-secondary">Fee</span>
-              <span className="font-mono text-text-muted">${estimate.fee.toFixed(2)}</span>
+              <span className="text-text-secondary">Potential Payout</span>
+              <span className="font-mono text-success">
+                ${isDemo ? (price > 0 ? (amountNum / price).toFixed(2) : "0") : estimate.tokensOut.toFixed(2)}
+              </span>
             </div>
-            {estimate.slippage > 1 && (
-              <div className="flex justify-between">
-                <span className="text-text-secondary">Price Impact</span>
-                <span className="font-mono text-warning">{estimate.slippage.toFixed(1)}%</span>
-              </div>
-            )}
           </>
+        )}
+        {amountNum > 0 && mode === "sell" && (
+          <div className="flex justify-between">
+            <span className="text-text-secondary">Est. Payout</span>
+            <span className="font-mono text-text-primary">
+              ${isDemo ? (amountNum * price).toFixed(2) : estimate.tokensOut.toFixed(2)}
+            </span>
+          </div>
+        )}
+        {!isDemo && amountNum > 0 && (
+          <div className="flex justify-between">
+            <span className="text-text-secondary">Fee</span>
+            <span className="font-mono text-text-muted">${estimate.fee.toFixed(2)}</span>
+          </div>
+        )}
+        {!isDemo && estimate.slippage > 1 && amountNum > 0 && (
+          <div className="flex justify-between">
+            <span className="text-text-secondary">Price Impact</span>
+            <span className="font-mono text-warning">{estimate.slippage.toFixed(1)}%</span>
+          </div>
         )}
       </div>
 
-      {estimate.slippage > 5 && amountNum > 0 && (
+      {!isDemo && estimate.slippage > 5 && amountNum > 0 && (
         <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-warning/10 border border-warning/30 rounded-lg text-warning text-xs">
           <AlertTriangle className="w-4 h-4 shrink-0" />
           <span>High price impact: {estimate.slippage.toFixed(1)}%</span>
@@ -235,6 +347,16 @@ export function TradingPanel({ market }: { market: Market }) {
         <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-primary/10 border border-primary/30 rounded-lg text-primary text-xs">
           <Wallet className="w-4 h-4 shrink-0" />
           <span>Connect wallet to place trades</span>
+        </div>
+      )}
+
+      {isDemo && connected && usdcBalance === 0 && (
+        <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-success/10 border border-success/20 rounded-lg text-xs">
+          <DollarSign className="w-4 h-4 shrink-0 text-success" />
+          <span className="text-text-secondary">No USDC yet — </span>
+          <Link href="/portfolio" className="text-success hover:text-success/80 font-medium">
+            Get Test USDC
+          </Link>
         </div>
       )}
 

@@ -6,9 +6,10 @@ import { useWallet } from "@solana/wallet-adapter-react";
 interface UsdcContextType {
   balance: number;
   addBalance: (amount: number) => void;
+  spendBalance: (amount: number) => boolean;
 }
 
-const UsdcContext = createContext<UsdcContextType>({ balance: 0, addBalance: () => {} });
+const UsdcContext = createContext<UsdcContextType>({ balance: 0, addBalance: () => {}, spendBalance: () => false });
 
 export const useUsdc = () => useContext(UsdcContext);
 
@@ -35,8 +36,19 @@ export function UsdcProvider({ children }: { children: ReactNode }) {
     });
   }, [publicKey]);
 
+  const spendBalance = useCallback((amount: number): boolean => {
+    if (!publicKey) return false;
+    const key = getKey(publicKey.toBase58());
+    const current = parseFloat(localStorage.getItem(key) || "0");
+    if (current < amount) return false;
+    const next = current - amount;
+    localStorage.setItem(key, next.toString());
+    setBalance(next);
+    return true;
+  }, [publicKey]);
+
   return (
-    <UsdcContext.Provider value={{ balance, addBalance }}>
+    <UsdcContext.Provider value={{ balance, addBalance, spendBalance }}>
       {children}
     </UsdcContext.Provider>
   );

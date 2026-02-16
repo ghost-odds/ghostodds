@@ -17,6 +17,9 @@ export function WalletButton() {
   const { balance: usdcBalance, addBalance } = useUsdc();
   const [showDropdown, setShowDropdown] = useState(false);
   const [balance, setBalance] = useState<number | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => { setMounted(true); }, []);
 
   useEffect(() => {
     if (!publicKey) { setBalance(null); return; }
@@ -40,6 +43,13 @@ export function WalletButton() {
   const truncatedAddress = publicKey
     ? `${publicKey.toBase58().slice(0, 4)}...${publicKey.toBase58().slice(-4)}`
     : "";
+
+  if (!mounted) {
+    // SSR placeholder — same dimensions as the connect button
+    return (
+      <div className="h-9 w-[140px] bg-surface border border-border rounded-lg animate-pulse" />
+    );
+  }
 
   if (!connected) {
     return <WalletMultiButton className="!bg-primary hover:!bg-primary-hover !text-white !text-sm !font-medium !rounded-lg !transition-all !duration-150 active:!scale-[0.98] !h-auto !py-2 !px-4" />;
