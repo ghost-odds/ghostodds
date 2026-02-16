@@ -772,6 +772,144 @@ export default function PitchPage() {
 
       <Divider />
 
+      {/* ── MARKET TYPES ── */}
+      <Section id="markets">
+        <p className="text-purple-400 font-mono text-sm tracking-wider uppercase mb-4">
+          Market Types
+        </p>
+        <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
+          Every market is <GradientText>unambiguous & automatic</GradientText>
+        </h2>
+        <p className="text-gray-400 text-lg mb-4">
+          No committee votes. No dispute windows. No human judgment. Every market
+          resolves deterministically from on-chain oracle data at the exact expiry
+          timestamp.
+        </p>
+        <p className="text-gray-500 text-sm mb-10">
+          Pyth Network delivers institutional-grade price feeds with 400ms updates,
+          trusted by $100B+ in DeFi. The oracle reads the price → the contract
+          compares to the target → winners get paid. Fully automatic, fully
+          trustless.
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-10">
+          {/* Price Threshold */}
+          <div className="border border-white/10 rounded-xl p-6 bg-white/[0.02]">
+            <div className="flex items-center gap-3 mb-4">
+              <span className="text-2xl">📈</span>
+              <h3 className="text-white font-semibold text-lg">Price Threshold</h3>
+            </div>
+            <p className="text-gray-400 text-sm mb-4">
+              &ldquo;Will asset X reach price Y by date Z?&rdquo;
+            </p>
+            <div className="space-y-2 text-sm">
+              <div className="flex items-center gap-2 text-gray-500">
+                <span className="text-green-400">●</span> Will SOL reach $300 by March 2026?
+              </div>
+              <div className="flex items-center gap-2 text-gray-500">
+                <span className="text-green-400">●</span> BTC above $150K by Q2 2026?
+              </div>
+              <div className="flex items-center gap-2 text-gray-500">
+                <span className="text-green-400">●</span> ETH above $5,000 by April?
+              </div>
+            </div>
+            <div className="mt-4 bg-black/30 rounded-lg p-3 text-xs font-mono text-gray-600">
+              Oracle: Pyth price feed ≥ target → YES
+            </div>
+          </div>
+
+          {/* Market Cap */}
+          <div className="border border-white/10 rounded-xl p-6 bg-white/[0.02]">
+            <div className="flex items-center gap-3 mb-4">
+              <span className="text-2xl">💎</span>
+              <h3 className="text-white font-semibold text-lg">Market Cap Milestone</h3>
+            </div>
+            <p className="text-gray-400 text-sm mb-4">
+              &ldquo;Will token X hit market cap Y by date Z?&rdquo;
+            </p>
+            <div className="space-y-2 text-sm">
+              <div className="flex items-center gap-2 text-gray-500">
+                <span className="text-purple-400">●</span> Fartcoin market cap above $5B?
+              </div>
+              <div className="flex items-center gap-2 text-gray-500">
+                <span className="text-purple-400">●</span> DOGE hit $1 (= ~$150B mcap)?
+              </div>
+              <div className="flex items-center gap-2 text-gray-500">
+                <span className="text-purple-400">●</span> Solana ecosystem TVL above $20B?
+              </div>
+            </div>
+            <div className="mt-4 bg-black/30 rounded-lg p-3 text-xs font-mono text-gray-600">
+              Oracle: CoinGecko / DeFiLlama feed ≥ target → YES
+            </div>
+          </div>
+
+          {/* Dominance / Ratio */}
+          <div className="border border-white/10 rounded-xl p-6 bg-white/[0.02]">
+            <div className="flex items-center gap-3 mb-4">
+              <span className="text-2xl">⚖️</span>
+              <h3 className="text-white font-semibold text-lg">Dominance & Ratios</h3>
+            </div>
+            <p className="text-gray-400 text-sm mb-4">
+              &ldquo;Will metric X cross threshold Y by date Z?&rdquo;
+            </p>
+            <div className="space-y-2 text-sm">
+              <div className="flex items-center gap-2 text-gray-500">
+                <span className="text-orange-400">●</span> Bitcoin dominance below 50%?
+              </div>
+              <div className="flex items-center gap-2 text-gray-500">
+                <span className="text-orange-400">●</span> ETH/BTC ratio above 0.05?
+              </div>
+              <div className="flex items-center gap-2 text-gray-500">
+                <span className="text-orange-400">●</span> Jupiter flip Uniswap in TVL?
+              </div>
+            </div>
+            <div className="mt-4 bg-black/30 rounded-lg p-3 text-xs font-mono text-gray-600">
+              Oracle: ratio/dominance feed ≥ or ≤ target → YES/NO
+            </div>
+          </div>
+
+          {/* Network Performance */}
+          <div className="border border-white/10 rounded-xl p-6 bg-white/[0.02]">
+            <div className="flex items-center gap-3 mb-4">
+              <span className="text-2xl">⚡</span>
+              <h3 className="text-white font-semibold text-lg">Network Metrics</h3>
+            </div>
+            <p className="text-gray-400 text-sm mb-4">
+              &ldquo;Will network X achieve performance Y by date Z?&rdquo;
+            </p>
+            <div className="space-y-2 text-sm">
+              <div className="flex items-center gap-2 text-gray-500">
+                <span className="text-blue-400">●</span> Solana sustain 100K TPS this month?
+              </div>
+              <div className="flex items-center gap-2 text-gray-500">
+                <span className="text-blue-400">●</span> ETH gas below 5 gwei average?
+              </div>
+              <div className="flex items-center gap-2 text-gray-500">
+                <span className="text-blue-400">●</span> Solana daily txns above 500M?
+              </div>
+            </div>
+            <div className="mt-4 bg-black/30 rounded-lg p-3 text-xs font-mono text-gray-600">
+              Oracle: on-chain metric feed ≥ target → YES
+            </div>
+          </div>
+        </div>
+
+        {/* Key differentiator callout */}
+        <div className="border border-purple-500/20 rounded-xl p-6 bg-purple-500/5 text-center">
+          <h4 className="text-white font-semibold mb-2">Every market follows the same pattern</h4>
+          <div className="font-mono text-sm text-purple-300 mb-3">
+            Will <span className="text-white">[metric]</span> reach <span className="text-white">[target]</span> by <span className="text-white">[date]</span>?
+          </div>
+          <p className="text-gray-500 text-sm max-w-lg mx-auto">
+            One formula. One oracle read. One comparison. Zero ambiguity.
+            The contract checks the feed at expiry — if condition met, YES wins.
+            If not, NO wins. No disputes, no votes, no delays.
+          </p>
+        </div>
+      </Section>
+
+      <Divider />
+
       {/* ── WHAT'S BUILT ── */}
       <Section id="built">
         <p className="text-purple-400 font-mono text-sm tracking-wider uppercase mb-4">
