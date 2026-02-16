@@ -26,12 +26,31 @@ function normalizeSource(resolutionSource: string): string {
   return resolutionSource.replace(/^Pyth:\s*/i, "").trim();
 }
 
-export function getCoinIdFromSource(resolutionSource: string): string | null {
-  return SOURCE_TO_COIN[normalizeSource(resolutionSource)] ?? null;
+// Keyword-to-CoinGecko-ID mapping for non-standard sources
+const QUESTION_KEYWORDS: Record<string, string> = {
+  fartcoin: "fartcoin",
+  doge: "dogecoin",
+  dogecoin: "dogecoin",
+  "bitcoin dominance": "bitcoin",
+};
+
+export function getCoinIdFromSource(resolutionSource: string, question?: string): string | null {
+  const direct = SOURCE_TO_COIN[normalizeSource(resolutionSource)];
+  if (direct) return direct;
+
+  // Try keyword matching from question text
+  if (question) {
+    const q = question.toLowerCase();
+    for (const [keyword, coinId] of Object.entries(QUESTION_KEYWORDS)) {
+      if (q.includes(keyword)) return coinId;
+    }
+  }
+
+  return null;
 }
 
-export function isPriceMarket(resolutionSource: string): boolean {
-  return getCoinIdFromSource(resolutionSource) !== null;
+export function isPriceMarket(resolutionSource: string, question?: string): boolean {
+  return getCoinIdFromSource(resolutionSource, question) !== null;
 }
 
 export async function fetchPriceHistory(coinId: string, days: number): Promise<PriceInfo> {

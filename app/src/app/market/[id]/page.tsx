@@ -64,8 +64,8 @@ export default function MarketDetailPage({ params }: { params: Promise<{ id: str
   const [priceInfo, setPriceInfo] = useState<PriceInfo | null>(null);
   const [priceLoading, setPriceLoading] = useState(false);
 
-  const hasPriceFeed = market ? isPriceMarket(market.resolutionSource) : false;
-  const coinId = market ? getCoinIdFromSource(market.resolutionSource) : null;
+  const hasPriceFeed = market ? isPriceMarket(market.resolutionSource, market.question) : false;
+  const coinId = market ? getCoinIdFromSource(market.resolutionSource, market.question) : null;
 
   // Fetch real price data
   useEffect(() => {
