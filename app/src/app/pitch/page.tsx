@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 
 /* ── Intersection Observer fade-in ── */
 function useFadeIn() {
@@ -281,6 +281,106 @@ function RevenueRow({
       <span className={`font-mono font-bold ${highlight ? "text-purple-300 text-lg" : "text-white"}`}>
         {revenue}/mo
       </span>
+    </div>
+  );
+}
+
+/* ── Revenue Calculator ── */
+const PRESETS = [
+  { label: "Early Stage", traders: 500, txPerTrader: 8, avgTx: 50 },
+  { label: "Growth", traders: 5000, txPerTrader: 12, avgTx: 120 },
+  { label: "Polymarket Scale", traders: 50000, txPerTrader: 15, avgTx: 200 },
+];
+
+function RevenueCalculator() {
+  const [traders, setTraders] = useState(5000);
+  const [txPerTrader, setTxPerTrader] = useState(12);
+  const [avgTx, setAvgTx] = useState(120);
+  const [feePct, setFeePct] = useState(2);
+
+  const monthlyVolume = traders * txPerTrader * avgTx;
+  const monthlyRevenue = monthlyVolume * (feePct / 100);
+  const annualRevenue = monthlyRevenue * 12;
+
+  const fmt = (n: number) => {
+    if (n >= 1_000_000_000) return `$${(n / 1_000_000_000).toFixed(1)}B`;
+    if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
+    if (n >= 1_000) return `$${(n / 1_000).toFixed(0)}K`;
+    return `$${n.toFixed(0)}`;
+  };
+
+  return (
+    <div className="border border-white/10 rounded-2xl p-6 md:p-8 bg-white/[0.02]">
+      <h3 className="text-white font-semibold text-lg mb-6">Revenue Calculator</h3>
+
+      {/* Presets */}
+      <div className="flex gap-2 mb-6 flex-wrap">
+        {PRESETS.map((p) => (
+          <button
+            key={p.label}
+            onClick={() => { setTraders(p.traders); setTxPerTrader(p.txPerTrader); setAvgTx(p.avgTx); }}
+            className="px-3 py-1.5 rounded-full text-xs font-medium border border-white/10 text-gray-400 hover:text-white hover:border-purple-500/50 hover:bg-purple-500/10 transition-all cursor-pointer"
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Sliders */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <div>
+          <div className="flex justify-between mb-2">
+            <label className="text-sm text-gray-400">Monthly Active Traders</label>
+            <span className="text-sm font-mono text-white">{traders.toLocaleString()}</span>
+          </div>
+          <input type="range" min={100} max={100000} step={100} value={traders} onChange={(e) => setTraders(Number(e.target.value))}
+            className="w-full accent-purple-500 h-1.5 rounded-full appearance-none bg-white/10 cursor-pointer" />
+          <div className="flex justify-between text-[10px] text-gray-600 mt-1"><span>100</span><span>100K</span></div>
+        </div>
+        <div>
+          <div className="flex justify-between mb-2">
+            <label className="text-sm text-gray-400">Trades per Trader / Month</label>
+            <span className="text-sm font-mono text-white">{txPerTrader}</span>
+          </div>
+          <input type="range" min={1} max={50} step={1} value={txPerTrader} onChange={(e) => setTxPerTrader(Number(e.target.value))}
+            className="w-full accent-purple-500 h-1.5 rounded-full appearance-none bg-white/10 cursor-pointer" />
+          <div className="flex justify-between text-[10px] text-gray-600 mt-1"><span>1</span><span>50</span></div>
+        </div>
+        <div>
+          <div className="flex justify-between mb-2">
+            <label className="text-sm text-gray-400">Avg Transaction Size</label>
+            <span className="text-sm font-mono text-white">${avgTx}</span>
+          </div>
+          <input type="range" min={10} max={1000} step={10} value={avgTx} onChange={(e) => setAvgTx(Number(e.target.value))}
+            className="w-full accent-purple-500 h-1.5 rounded-full appearance-none bg-white/10 cursor-pointer" />
+          <div className="flex justify-between text-[10px] text-gray-600 mt-1"><span>$10</span><span>$1,000</span></div>
+        </div>
+        <div>
+          <div className="flex justify-between mb-2">
+            <label className="text-sm text-gray-400">Protocol Fee</label>
+            <span className="text-sm font-mono text-white">{feePct}%</span>
+          </div>
+          <input type="range" min={0.5} max={5} step={0.5} value={feePct} onChange={(e) => setFeePct(Number(e.target.value))}
+            className="w-full accent-purple-500 h-1.5 rounded-full appearance-none bg-white/10 cursor-pointer" />
+          <div className="flex justify-between text-[10px] text-gray-600 mt-1"><span>0.5%</span><span>5%</span></div>
+        </div>
+      </div>
+
+      {/* Results */}
+      <div className="grid grid-cols-3 gap-4">
+        <div className="text-center p-4 rounded-xl bg-black/30">
+          <div className="text-xs text-gray-500 uppercase tracking-wider mb-2">Monthly Volume</div>
+          <div className="text-xl md:text-2xl font-mono font-bold text-white">{fmt(monthlyVolume)}</div>
+        </div>
+        <div className="text-center p-4 rounded-xl bg-purple-500/10 border border-purple-500/20">
+          <div className="text-xs text-gray-500 uppercase tracking-wider mb-2">Monthly Revenue</div>
+          <div className="text-xl md:text-2xl font-mono font-bold text-purple-300">{fmt(monthlyRevenue)}</div>
+        </div>
+        <div className="text-center p-4 rounded-xl bg-black/30">
+          <div className="text-xs text-gray-500 uppercase tracking-wider mb-2">Annual Revenue</div>
+          <div className="text-xl md:text-2xl font-mono font-bold text-white">{fmt(annualRevenue)}</div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -913,19 +1013,34 @@ export default function PitchPage() {
         <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
           Simple. <GradientText>Scalable.</GradientText>
         </h2>
-        <p className="text-gray-400 text-lg mb-10">
-          2% fee on all trades. Phase 2 adds a creator fee split (1% creator / 1%
-          protocol).
+        <p className="text-gray-400 text-lg mb-6">
+          Configurable fee on all trades (default 2%). Phase 2 adds creator fee split.
         </p>
 
-        <div className="space-y-3 mb-8">
-          <RevenueRow volume="$10M" revenue="$200K" />
-          <RevenueRow volume="$100M" revenue="$2M" highlight />
-          <RevenueRow volume="$500M" revenue="$10M" />
+        {/* Fee Structure */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10">
+          <div className="border border-white/10 rounded-xl p-5 bg-white/[0.02] text-center">
+            <div className="text-2xl font-mono font-bold text-white mb-1">2%</div>
+            <div className="text-xs text-gray-500 uppercase tracking-wider">Trading Fee</div>
+            <div className="text-xs text-gray-600 mt-2">Charged on every buy & sell</div>
+          </div>
+          <div className="border border-white/10 rounded-xl p-5 bg-white/[0.02] text-center">
+            <div className="text-2xl font-mono font-bold text-gray-400 mb-1">1% + 1%</div>
+            <div className="text-xs text-gray-500 uppercase tracking-wider">Phase 2 Split</div>
+            <div className="text-xs text-gray-600 mt-2">Creator fee + protocol fee</div>
+          </div>
+          <div className="border border-white/10 rounded-xl p-5 bg-white/[0.02] text-center">
+            <div className="text-2xl font-mono font-bold text-gray-400 mb-1">On-chain</div>
+            <div className="text-xs text-gray-500 uppercase tracking-wider">Configurable</div>
+            <div className="text-xs text-gray-600 mt-2">Admin can adjust fee BPS</div>
+          </div>
         </div>
 
-        <p className="text-gray-600 text-sm text-center">
-          For reference, Polymarket hit $2B+ monthly volume in late 2024.
+        {/* Interactive Calculator */}
+        <RevenueCalculator />
+
+        <p className="text-gray-600 text-sm text-center mt-6">
+          For reference, Polymarket hit $2B+ monthly volume in late 2024. Kalshi hit $50B annualized in 2025.
         </p>
       </Section>
 
