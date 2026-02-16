@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useConnection } from "@solana/wallet-adapter-react";
 import { fetchAllMarkets, fetchMarket, computePrices, toHuman, OnChainMarket } from "./anchor";
 import { Market, MarketStatus } from "./types";
@@ -58,26 +58,28 @@ function mapOnChainMarket(m: OnChainMarket): Market {
 
 export function useMarkets() {
   const { connection } = useConnection();
-  const [markets, setMarkets] = useState<Market[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [markets, setMarkets] = useState<Market[]>(DEMO_MARKETS);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const initialLoad = useRef(true);
 
   const refresh = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+    // Only show loading spinner on very first load
+    if (initialLoad.current) {
+      setLoading(true);
+      initialLoad.current = false;
+    }
     try {
       const onChain = await fetchAllMarkets(connection);
       if (onChain.length > 0) {
         const mapped = onChain.map(mapOnChainMarket);
         mapped.sort((a, b) => b.volume - a.volume);
         setMarkets(mapped);
-      } else {
-        // Show demo markets when no on-chain markets exist
-        setMarkets(DEMO_MARKETS);
       }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to fetch markets");
-      setMarkets([]);
+      // If no on-chain markets, keep showing demo markets (initial state)
+      setError(null);
+    } catch {
+      // Silently keep demo markets on error
     } finally {
       setLoading(false);
     }
@@ -85,7 +87,8 @@ export function useMarkets() {
 
   useEffect(() => {
     refresh();
-    const id = setInterval(refresh, 30000);
+    // Poll every 60s (no visual disruption since we don't reset state)
+    const id = setInterval(refresh, 60000);
     return () => clearInterval(id);
   }, [refresh]);
 
@@ -94,35 +97,26 @@ export function useMarkets() {
 
 export function useMarket(marketId: number) {
   const { connection } = useConnection();
-  const [market, setMarket] = useState<Market | null>(null);
-  const [loading, setLoading] = useState(true);
+  const demoMarket = DEMO_MARKETS.find((m) => m.id === marketId) || null;
+  const [market, setMarket] = useState<Market | null>(demoMarket);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const initialLoad = useRef(true);
 
   const refresh = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+    if (initialLoad.current) {
+      setLoading(true);
+      initialLoad.current = false;
+    }
     try {
       const onChain = await fetchMarket(connection, marketId);
       if (onChain) {
         setMarket(mapOnChainMarket(onChain));
-      } else {
-        // Fall back to demo market
-        const demo = DEMO_MARKETS.find((m) => m.id === marketId);
-        if (demo) {
-          setMarket(demo);
-        } else {
-          setMarket(null);
-          setError("Market not found");
-        }
       }
-    } catch (e) {
-      // On error, also try demo
-      const demo = DEMO_MARKETS.find((m) => m.id === marketId);
-      if (demo) {
-        setMarket(demo);
-      } else {
-        setError(e instanceof Error ? e.message : "Failed to fetch market");
-      }
+      // If not found on-chain, keep demo market (initial state)
+      setError(null);
+    } catch {
+      // Silently keep demo market on error
     } finally {
       setLoading(false);
     }
@@ -130,7 +124,8 @@ export function useMarket(marketId: number) {
 
   useEffect(() => {
     refresh();
-    const id = setInterval(refresh, 15000);
+    // Poll every 60s
+    const id = setInterval(refresh, 60000);
     return () => clearInterval(id);
   }, [refresh]);
 
