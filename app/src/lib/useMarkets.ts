@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useConnection } from "@solana/wallet-adapter-react";
-import { BN } from "@coral-xyz/anchor";
 import { fetchAllMarkets, fetchMarket, computePrices, toHuman, OnChainMarket } from "./anchor";
 import { Market, MarketStatus } from "./types";
 
@@ -16,15 +15,12 @@ function statusFromCode(code: number): MarketStatus {
 }
 
 function mapOnChainMarket(m: OnChainMarket): Market {
-  const yesAmount = new BN(m.yesAmount.toString());
-  const noAmount = new BN(m.noAmount.toString());
-  const { yesPrice, noPrice } = computePrices(yesAmount, noAmount);
-  const marketId = new BN((m.marketId as any).toString()).toNumber();
+  const { yesPrice, noPrice } = computePrices(m.yesAmount, m.noAmount);
 
-  const expiresAt = new BN(m.expiresAt.toString()).toNumber();
-  const createdAt = new BN(m.createdAt.toString()).toNumber();
-  const volume = toHuman(new BN(m.volume.toString()));
-  const liquidity = toHuman(new BN(m.totalLiquidity.toString()));
+  const expiresAt = Number(m.expiresAt);
+  const createdAt = Number(m.createdAt);
+  const volume = toHuman(m.volume);
+  const liquidity = toHuman(m.totalLiquidity);
 
   let status = statusFromCode(m.status);
   if (status === "active" && expiresAt * 1000 < Date.now()) {
@@ -32,7 +28,7 @@ function mapOnChainMarket(m: OnChainMarket): Market {
   }
 
   return {
-    id: marketId,
+    id: m.marketId,
     publicKey: m.publicKey.toBase58(),
     question: m.question,
     description: m.description,
@@ -45,12 +41,12 @@ function mapOnChainMarket(m: OnChainMarket): Market {
     createdAt: new Date(createdAt * 1000).toISOString(),
     status,
     resolutionSource: m.resolutionSource,
-    resolutionValue: m.resolutionValue ? toHuman(new BN(m.resolutionValue.toString())) : null,
+    resolutionValue: m.resolutionValue ? toHuman(m.resolutionValue) : null,
     resolutionOperator: m.resolutionOperator,
     outcome: m.outcome,
     feeBps: m.feeBps,
-    yesAmount: toHuman(yesAmount),
-    noAmount: toHuman(noAmount),
+    yesAmount: toHuman(m.yesAmount),
+    noAmount: toHuman(m.noAmount),
     yesMint: m.yesMint.toBase58(),
     noMint: m.noMint.toBase58(),
     vault: m.vault.toBase58(),

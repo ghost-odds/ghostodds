@@ -2,7 +2,6 @@
 
 import { useState, useMemo } from "react";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
-import { AnchorProvider } from "@coral-xyz/anchor";
 import { cn } from "@/lib/utils";
 import { Market, Side } from "@/lib/types";
 import { buyOutcome, sellOutcome } from "@/lib/anchor";
@@ -75,19 +74,15 @@ export function TradingPanel({ market }: { market: Market }) {
 
     try {
       const wallet = { publicKey, signTransaction, signAllTransactions };
-      const provider = new AnchorProvider(connection, wallet as never, {
-        commitment: "confirmed",
-        preflightCommitment: "confirmed",
-      });
 
       let txSig: string;
 
       if (mode === "buy") {
         setLoadingText("Confirm in wallet...");
-        txSig = await buyOutcome(provider, market.id, amountNum, side === "YES");
+        txSig = await buyOutcome(connection, wallet, market.id, amountNum, side === "YES");
       } else {
         setLoadingText("Confirm in wallet...");
-        txSig = await sellOutcome(provider, market.id, amountNum, side === "YES");
+        txSig = await sellOutcome(connection, wallet, market.id, amountNum, side === "YES");
       }
 
       setLoadingText("Confirming...");

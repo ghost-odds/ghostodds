@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Navbar } from "@/components/Navbar";
-import { WalletProviderWrapper } from "@/components/WalletProvider";
+import { ClientProviders } from "@/components/ClientProviders";
 import { ToastProvider } from "@/components/Toast";
 
 const inter = Inter({
@@ -27,17 +27,20 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
+      <head>
+        <script src="/buffer-polyfill.js" />
+      </head>
       <body
         className={`${inter.variable} ${jetbrainsMono.variable} antialiased min-h-screen`}
       >
-        <WalletProviderWrapper>
+        <ClientProviders>
           <ToastProvider>
             <Navbar />
             <main className="max-w-[1280px] mx-auto px-4 sm:px-6 pt-20 pb-12">
               {children}
             </main>
           </ToastProvider>
-        </WalletProviderWrapper>
+        </ClientProviders>
       </body>
     </html>
   );

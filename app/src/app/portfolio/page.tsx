@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
-import { AnchorProvider } from "@coral-xyz/anchor";
 import { usePositions } from "@/lib/usePositions";
 import { redeemWinnings } from "@/lib/anchor";
 import { cn } from "@/lib/utils";
@@ -35,8 +34,7 @@ export default function PortfolioPage() {
     setClaiming(marketId);
     try {
       const wallet = { publicKey, signTransaction, signAllTransactions };
-      const provider = new AnchorProvider(connection, wallet as never, { commitment: "confirmed" });
-      const txSig = await redeemWinnings(provider, marketId);
+      const txSig = await redeemWinnings(connection, wallet, marketId);
       toast("Winnings redeemed!", "success", `Tx: ${txSig.slice(0, 8)}...${txSig.slice(-8)}`);
       await refresh();
     } catch (e: unknown) {

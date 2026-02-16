@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
-import { AnchorProvider } from "@coral-xyz/anchor";
 import { useMarkets } from "@/lib/useMarkets";
 import { createMarket } from "@/lib/anchor";
 import { formatUSD } from "@/lib/format";
@@ -48,7 +47,6 @@ export default function AdminPage() {
     setCreating(true);
     try {
       const wallet = { publicKey, signTransaction, signAllTransactions };
-      const provider = new AnchorProvider(connection, wallet as never, { commitment: "confirmed" });
 
       const expiresAt = Math.floor(new Date(form.expiry).getTime() / 1000);
       const targetPrice = parseFloat(form.targetPrice);
@@ -61,7 +59,8 @@ export default function AdminPage() {
       }
 
       const txSig = await createMarket(
-        provider,
+        connection,
+        wallet,
         form.question,
         form.description,
         form.category,
