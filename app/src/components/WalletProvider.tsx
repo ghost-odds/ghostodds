@@ -15,7 +15,7 @@ export function WalletProviderWrapper({ children }: { children: ReactNode }) {
 
   return (
     <ConnectionProvider endpoint={endpoint}>
-      <SolanaWalletProvider wallets={wallets} autoConnect>
+      <SolanaWalletProvider wallets={wallets}>
         <WalletModalProvider>
           {children}
         </WalletModalProvider>
