@@ -16,6 +16,7 @@
     "@solana/wallet-adapter-wallets": "^0.19.37",
     "@solana/web3.js": "^1.98.4",
     "buffer": "^6.0.3",
+    "css-doodle": "^0.50.2",
     "lucide-react": "^0.564.0",
     "next": "16.1.6",
     "react": "19.2.3",

@@ -1,21 +1,23 @@
 "use client";
 
-import { use, useState, useMemo } from "react";
+import { use, useState, useMemo, useEffect } from "react";
 import {
   ArrowLeft, ExternalLink, Clock, BarChart2, Droplets, Calendar,
-  Loader2, AlertCircle, Users, TrendingUp, Copy, Check, Info
+  Loader2, AlertCircle, Users, TrendingUp, Copy, Check, Info, DollarSign
 } from "lucide-react";
 import Link from "next/link";
 import { useMarket } from "@/lib/useMarkets";
 import { formatUSD, formatTimeRemaining } from "@/lib/format";
 import { TradingPanel } from "@/components/TradingPanel";
 import { generatePriceHistory, generateRecentTrades, getMarketStats, getDemoPDA } from "@/lib/mock-activity";
+import { isPriceMarket, getCoinIdFromSource, fetchPriceHistory, PriceInfo } from "@/lib/price-feed";
 import {
-  ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, Area, AreaChart
+  ResponsiveContainer, ComposedChart, Line, XAxis, YAxis, Tooltip, Area, ReferenceLine, Legend
 } from "recharts";
 
 type TimeRange = "1H" | "6H" | "24H" | "7D";
 const RANGE_POINTS: Record<TimeRange, number> = { "1H": 60, "6H": 120, "24H": 200, "7D": 500 };
+const RANGE_DAYS: Record<TimeRange, number> = { "1H": 1, "6H": 1, "24H": 1, "7D": 7 };
 
 function timeAgo(ts: string) {
   const diff = Date.now() - new Date(ts).getTime();
@@ -27,22 +29,74 @@ function timeAgo(ts: string) {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
+interface MergedPoint {
+  time: string;
+  probability: number;
+  assetPrice?: number;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function CustomTooltip({ active, payload }: any) {
+  if (!active || !payload?.length) return null;
+  const prob = payload.find((p: any) => p.dataKey === "probability");
+  const price = payload.find((p: any) => p.dataKey === "assetPrice");
+  return (
+    <div className="bg-[#12121a] border border-[#1e1e2e] rounded-lg px-3 py-2 text-xs">
+      {prob && <div className="text-[#22c55e]">Probability: {Math.round(prob.value * 100)}¢</div>}
+      {price && <div className="text-[#7c5cfc]">Price: ${Number(price.value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>}
+    </div>
+  );
+}
+
 export default function MarketDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { market, loading, error } = useMarket(parseInt(id));
   const [range, setRange] = useState<TimeRange>("24H");
   const [copied, setCopied] = useState(false);
+  const [priceInfo, setPriceInfo] = useState<PriceInfo | null>(null);
+  const [priceLoading, setPriceLoading] = useState(false);
 
-  const priceHistory = useMemo(() => {
+  const hasPriceFeed = market ? isPriceMarket(market.resolutionSource) : false;
+  const coinId = market ? getCoinIdFromSource(market.resolutionSource) : null;
+
+  // Fetch real price data
+  useEffect(() => {
+    if (!coinId) { setPriceInfo(null); return; }
+    setPriceLoading(true);
+    fetchPriceHistory(coinId, RANGE_DAYS[range])
+      .then(setPriceInfo)
+      .catch(() => setPriceInfo(null))
+      .finally(() => setPriceLoading(false));
+  }, [coinId, range]);
+
+  const probHistory = useMemo(() => {
     if (!market) return [];
-    const pts = RANGE_POINTS[range];
     const all = generatePriceHistory(market.yesPrice, 0.015, 500, market.id * 13 + 7);
-    // slice based on range
     if (range === "1H") return all.slice(-60);
     if (range === "6H") return all.slice(-120);
     if (range === "24H") return all.slice(-200);
     return all;
   }, [market, range]);
+
+  // Merge probability and price data
+  const chartData: MergedPoint[] = useMemo(() => {
+    if (!hasPriceFeed || !priceInfo?.history.length) {
+      return probHistory.map(p => ({ time: p.time, probability: p.price }));
+    }
+
+    const pricePoints = priceInfo.history;
+    const probPoints = probHistory;
+    const count = Math.min(probPoints.length, pricePoints.length);
+    // Align by taking last `count` points from each
+    const pSlice = pricePoints.slice(-count);
+    const probSlice = probPoints.slice(-count);
+
+    return probSlice.map((p, i) => ({
+      time: p.time,
+      probability: p.price,
+      assetPrice: pSlice[i]?.price,
+    }));
+  }, [probHistory, priceInfo, hasPriceFeed]);
 
   const trades = useMemo(() => {
     if (!market) return [];
@@ -87,10 +141,15 @@ export default function MarketDetailPage({ params }: { params: Promise<{ id: str
     );
   }
 
-  const priceMin = Math.min(...priceHistory.map(p => p.price));
-  const priceMax = Math.max(...priceHistory.map(p => p.price));
-  const yMin = Math.max(0, Math.floor(priceMin * 100 - 3) / 100);
-  const yMax = Math.min(1, Math.ceil(priceMax * 100 + 3) / 100);
+  const probMin = Math.min(...chartData.map(p => p.probability));
+  const probMax = Math.max(...chartData.map(p => p.probability));
+  const yMin = Math.max(0, Math.floor(probMin * 100 - 3) / 100);
+  const yMax = Math.min(1, Math.ceil(probMax * 100 + 3) / 100);
+
+  const hasAssetPrice = chartData.some(d => d.assetPrice != null);
+  const assetPrices = chartData.filter(d => d.assetPrice != null).map(d => d.assetPrice!);
+  const priceMin = assetPrices.length ? Math.min(...assetPrices) * 0.995 : 0;
+  const priceMax = assetPrices.length ? Math.max(...assetPrices) * 1.005 : 1;
 
   return (
     <div>
@@ -140,7 +199,7 @@ export default function MarketDetailPage({ params }: { params: Promise<{ id: str
 
           {/* Price Display */}
           <div className="bg-surface border border-border rounded-xl p-6">
-            <div className="grid grid-cols-2 gap-8">
+            <div className={`grid ${hasPriceFeed && priceInfo ? "grid-cols-3" : "grid-cols-2"} gap-8`}>
               <div className="text-center">
                 <div className="text-xs text-text-muted mb-2">YES Price</div>
                 <div className="text-4xl font-mono font-bold text-success">
@@ -153,13 +212,24 @@ export default function MarketDetailPage({ params }: { params: Promise<{ id: str
                   {Math.round(market.noPrice * 100)}¢
                 </div>
               </div>
+              {hasPriceFeed && priceInfo && (
+                <div className="text-center">
+                  <div className="text-xs text-text-muted mb-2">{market.resolutionSource} Live</div>
+                  <div className="text-4xl font-mono font-bold text-[#7c5cfc]">
+                    ${priceInfo.currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
           {/* Price Chart */}
           <div className="bg-surface border border-border rounded-xl p-5">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-semibold text-text-primary">Price History</h3>
+              <div className="flex items-center gap-3">
+                <h3 className="text-sm font-semibold text-text-primary">Price History</h3>
+                {priceLoading && <Loader2 className="w-3.5 h-3.5 text-text-muted animate-spin" />}
+              </div>
               <div className="flex gap-1">
                 {(["1H", "6H", "24H", "7D"] as TimeRange[]).map((r) => (
                   <button
@@ -176,17 +246,19 @@ export default function MarketDetailPage({ params }: { params: Promise<{ id: str
                 ))}
               </div>
             </div>
-            <div className="h-[260px] w-full">
+            <div className="h-[280px] w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={priceHistory} margin={{ top: 5, right: 5, bottom: 5, left: 0 }}>
+                <ComposedChart data={chartData} margin={{ top: 5, right: hasAssetPrice ? 10 : 5, bottom: 5, left: 0 }}>
                   <defs>
-                    <linearGradient id="priceGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#22c55e" stopOpacity={0.2} />
+                    <linearGradient id="probGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#22c55e" stopOpacity={0.15} />
                       <stop offset="100%" stopColor="#22c55e" stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <XAxis dataKey="time" hide />
                   <YAxis
+                    yAxisId="prob"
+                    orientation="left"
                     domain={[yMin, yMax]}
                     tickFormatter={(v: number) => `${Math.round(v * 100)}¢`}
                     axisLine={false}
@@ -194,26 +266,69 @@ export default function MarketDetailPage({ params }: { params: Promise<{ id: str
                     tick={{ fill: "#6b7280", fontSize: 11 }}
                     width={42}
                   />
-                  <Tooltip
-                    contentStyle={{
-                      background: "#12121a",
-                      border: "1px solid #1e1e2e",
-                      borderRadius: "8px",
-                      fontSize: "12px",
-                    }}
-                    labelStyle={{ display: "none" }}
-                    formatter={(value: number) => [`${Math.round(value * 100)}¢`, "YES"]}
-                  />
+                  {hasAssetPrice && (
+                    <YAxis
+                      yAxisId="price"
+                      orientation="right"
+                      domain={[priceMin, priceMax]}
+                      tickFormatter={(v: number) => `$${v >= 1000 ? (v / 1000).toFixed(1) + "k" : v.toFixed(0)}`}
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fill: "#6b7280", fontSize: 11 }}
+                      width={55}
+                    />
+                  )}
+                  <Tooltip content={<CustomTooltip />} />
+                  {hasAssetPrice && (
+                    <Legend
+                      verticalAlign="top"
+                      height={28}
+                      formatter={(value: string) => (
+                        <span className="text-xs text-gray-400">
+                          {value === "probability" ? "Probability" : "Asset Price"}
+                        </span>
+                      )}
+                    />
+                  )}
                   <Area
+                    yAxisId="prob"
                     type="monotone"
-                    dataKey="price"
+                    dataKey="probability"
                     stroke="#22c55e"
                     strokeWidth={2}
-                    fill="url(#priceGradient)"
+                    fill="url(#probGradient)"
                     dot={false}
                     animationDuration={500}
+                    name="probability"
                   />
-                </AreaChart>
+                  {hasAssetPrice && (
+                    <Line
+                      yAxisId="price"
+                      type="monotone"
+                      dataKey="assetPrice"
+                      stroke="#7c5cfc"
+                      strokeWidth={2}
+                      dot={false}
+                      animationDuration={500}
+                      name="assetPrice"
+                    />
+                  )}
+                  {hasAssetPrice && market.resolutionValue != null && (
+                    <ReferenceLine
+                      yAxisId="price"
+                      y={market.resolutionValue}
+                      stroke="#f59e0b"
+                      strokeDasharray="6 4"
+                      strokeWidth={1.5}
+                      label={{
+                        value: `Target: $${market.resolutionValue.toLocaleString()}`,
+                        position: "right",
+                        fill: "#f59e0b",
+                        fontSize: 11,
+                      }}
+                    />
+                  )}
+                </ComposedChart>
               </ResponsiveContainer>
             </div>
           </div>
@@ -237,6 +352,38 @@ export default function MarketDetailPage({ params }: { params: Promise<{ id: str
               </div>
             ))}
           </div>
+
+          {/* Asset Price Stats Card */}
+          {hasPriceFeed && priceInfo && (
+            <div className="bg-surface border border-border rounded-xl p-5">
+              <h3 className="text-sm font-semibold text-text-primary mb-3 flex items-center gap-2">
+                <DollarSign className="w-4 h-4 text-[#7c5cfc]" />
+                {market.resolutionSource} Price Data
+              </h3>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                <div>
+                  <div className="text-xs text-text-muted mb-1">Current Price</div>
+                  <div className="text-lg font-mono font-bold text-[#7c5cfc]">
+                    ${priceInfo.currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-text-muted mb-1">24h Change</div>
+                  <div className={`text-lg font-mono font-bold ${priceInfo.change24h >= 0 ? "text-success" : "text-danger"}`}>
+                    {priceInfo.change24h >= 0 ? "+" : ""}{priceInfo.change24h.toFixed(2)}%
+                  </div>
+                </div>
+                {market.resolutionValue != null && (
+                  <div>
+                    <div className="text-xs text-text-muted mb-1">Target Price</div>
+                    <div className="text-lg font-mono font-bold text-[#f59e0b]">
+                      ${market.resolutionValue.toLocaleString()}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Recent Trades */}
           <div className="bg-surface border border-border rounded-xl p-5">
