@@ -8,7 +8,12 @@ import { UsdcProvider } from "@/lib/usdc-context";
 // Dynamically import wallet provider to avoid SSR hydration issues
 const WalletProviderWrapper = dynamic(
   () => import("./WalletProvider").then((m) => m.WalletProviderWrapper),
-  { ssr: false }
+  { 
+    ssr: false,
+    loading: () => (
+      <div className="min-h-screen bg-[#0a0a12]" />
+    ),
+  }
 );
 
 export function ClientProviders({ children }: { children: ReactNode }) {
