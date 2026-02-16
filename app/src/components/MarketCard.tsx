@@ -21,9 +21,12 @@ export function MarketCard({ market, trending }: { market: Market; trending?: bo
   const stats = getMarketStats(market.id, market.volume);
 
   const card = (
-    <div className={`group bg-surface border border-border rounded-xl p-5 hover:border-primary/50 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary/5 transition-all duration-200 h-full flex flex-col ${trending ? "relative" : ""}`}>
+    <div className={`group border border-border p-5 hover:border-primary/50 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary/5 transition-all duration-200 h-full flex flex-col ${trending ? "relative rounded-2xl bg-surface overflow-hidden" : "rounded-xl bg-surface"}`}>
       {trending && (
-        <div className="absolute -top-2 -right-2 text-lg z-10">🔥</div>
+        <>
+          <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse at 50% 0%, rgba(245,158,11,0.07) 0%, rgba(239,68,68,0.04) 40%, transparent 70%)" }} />
+          <div className="absolute -top-2 -right-2 text-lg z-10">🔥</div>
+        </>
       )}
       <div className="flex items-center justify-between mb-3">
         <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${categoryColors[market.category] || categoryColors.Other}`}>
@@ -98,7 +101,7 @@ export function MarketCard({ market, trending }: { market: Market; trending?: bo
 
   if (trending) {
     return (
-      <div className="rounded-xl p-[1px] bg-gradient-to-r from-orange-500 via-red-500 to-yellow-500 shadow-lg shadow-orange-500/10 animate-shimmer bg-[length:200%_100%] h-full">
+      <div className="rounded-2xl p-[1px] bg-gradient-to-r from-orange-500 via-red-500 to-yellow-500 shadow-lg shadow-orange-500/10 animate-shimmer bg-[length:200%_100%] h-full">
         {card}
       </div>
     );
