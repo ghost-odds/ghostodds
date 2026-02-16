@@ -5,7 +5,7 @@ import { Clock, BarChart2, Users } from "lucide-react";
 import { Market } from "@/lib/types";
 import { formatUSD, formatTimeRemaining } from "@/lib/format";
 import { generatePriceHistory, getMarketStats } from "@/lib/mock-activity";
-import { LineChart, Line, ResponsiveContainer } from "recharts";
+import { AreaChart, Area, ResponsiveContainer } from "recharts";
 
 const categoryColors: Record<string, string> = {
   Crypto: "bg-primary/20 text-primary",
@@ -14,14 +14,17 @@ const categoryColors: Record<string, string> = {
   Other: "bg-text-muted/20 text-text-muted",
 };
 
-export function MarketCard({ market }: { market: Market }) {
+export function MarketCard({ market, trending }: { market: Market; trending?: boolean }) {
   const yesPercent = Math.round(market.yesPrice * 100);
   const noPercent = 100 - yesPercent;
   const history = generatePriceHistory(market.yesPrice, 0.03, 30, market.id * 77);
   const stats = getMarketStats(market.id, market.volume);
 
-  return (
-    <div className="group bg-surface border border-border rounded-xl p-5 hover:border-primary/50 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary/5 transition-all duration-200 h-full flex flex-col">
+  const card = (
+    <div className={`group bg-surface border border-border rounded-xl p-5 hover:border-primary/50 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary/5 transition-all duration-200 h-full flex flex-col ${trending ? "relative" : ""}`}>
+      {trending && (
+        <div className="absolute -top-2 -right-2 text-lg z-10">🔥</div>
+      )}
       <div className="flex items-center justify-between mb-3">
         <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${categoryColors[market.category] || categoryColors.Other}`}>
           {market.category}
@@ -59,9 +62,15 @@ export function MarketCard({ market }: { market: Market }) {
       {/* Sparkline */}
       <div className="h-10 mb-3">
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={history}>
-            <Line type="monotone" dataKey="price" stroke="#6366f1" strokeWidth={1.5} dot={false} />
-          </LineChart>
+          <AreaChart data={history}>
+            <defs>
+              <linearGradient id={`sparkGradient-${market.id}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#6366f1" stopOpacity={0.2} />
+                <stop offset="100%" stopColor="#6366f1" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <Area type="monotone" dataKey="price" stroke="#6366f1" strokeWidth={1.5} fill={`url(#sparkGradient-${market.id})`} dot={false} />
+          </AreaChart>
         </ResponsiveContainer>
       </div>
 
@@ -86,4 +95,14 @@ export function MarketCard({ market }: { market: Market }) {
       </div>
     </div>
   );
+
+  if (trending) {
+    return (
+      <div className="rounded-xl p-[1px] bg-gradient-to-r from-orange-500 via-red-500 to-yellow-500 shadow-lg shadow-orange-500/10 animate-shimmer bg-[length:200%_100%] h-full">
+        {card}
+      </div>
+    );
+  }
+
+  return card;
 }
