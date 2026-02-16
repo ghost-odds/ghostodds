@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GhostOdds — Pitch Deck</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+  
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --surface2: #1a1a2e;
+    --border: #2a2a3e;
+    --text: #e4e4e7;
+    --text-dim: #71717a;
+    --accent: #8b5cf6;
+    --accent2: #a78bfa;
+    --green: #22c55e;
+    --red: #ef4444;
+    --blue: #3b82f6;
+    --orange: #f59e0b;
+  }
+  
+  body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+  }
+  
+  .deck {
+    width: 100vw;
+    height: 100vh;
+    position: relative;
+  }
+  
+  .slide {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 60px 100px;
+    opacity: 0;
+    transform: translateX(60px);
+    transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    pointer-events: none;
+    overflow-y: auto;
+  }
+  
+  .slide.active {
+    opacity: 1;
+    transform: translateX(0);
+    pointer-events: all;
+  }
+  
+  .slide.exit {
+    opacity: 0;
+    transform: translateX(-60px);
+  }
+  
+  /* Slide counter */
+  .slide-counter {
+    position: fixed;
+    bottom: 24px;
+    right: 40px;
+    font-size: 14px;
+    color: var(--text-dim);
+    font-weight: 500;
+    z-index: 100;
+    font-variant-numeric: tabular-nums;
+  }
+  
+  /* Progress bar */
+  .progress {
+    position: fixed;
+    top: 0; left: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--accent), var(--green));
+    transition: width 0.5s ease;
+    z-index: 100;
+  }
+  
+  /* Nav hint */
+  .nav-hint {
+    position: fixed;
+    bottom: 24px;
+    left: 40px;
+    font-size: 12px;
+    color: var(--text-dim);
+    opacity: 0.5;
+    z-index: 100;
+  }
+  
+  /* =================== TYPOGRAPHY =================== */
+  h1 {
+    font-size: 64px;
+    font-weight: 900;
+    letter-spacing: -2px;
+    line-height: 1.1;
+    margin-bottom: 16px;
+  }
+  
+  h2 {
+    font-size: 48px;
+    font-weight: 800;
+    letter-spacing: -1.5px;
+    line-height: 1.15;
+    margin-bottom: 12px;
+  }
+  
+  h3 {
+    font-size: 28px;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+  
+  .subtitle {
+    font-size: 22px;
+    color: var(--text-dim);
+    font-weight: 400;
+    margin-bottom: 32px;
+  }
+  
+  .tagline {
+    font-size: 28px;
+    color: var(--accent2);
+    font-weight: 500;
+    font-style: italic;
+    margin-bottom: 24px;
+  }
+  
+  .big-number {
+    font-size: 72px;
+    font-weight: 900;
+    background: linear-gradient(135deg, var(--accent), var(--green));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    line-height: 1;
+  }
+  
+  .label {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+  
+  /* =================== COMPONENTS =================== */
+  .ghost-logo {
+    font-size: 80px;
+    margin-bottom: 16px;
+    filter: drop-shadow(0 0 30px rgba(139, 92, 246, 0.4));
+  }
+  
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; }
+  .grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 20px; }
+  
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+  }
+  
+  .card-accent {
+    background: linear-gradient(135deg, rgba(139,92,246,0.1), rgba(34,197,94,0.05));
+    border: 1px solid rgba(139,92,246,0.3);
+    border-radius: 16px;
+    padding: 28px;
+  }
+  
+  .pain-point {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+    margin-bottom: 20px;
+  }
+  
+  .pain-icon {
+    font-size: 28px;
+    flex-shrink: 0;
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(239,68,68,0.1);
+    border-radius: 12px;
+  }
+  
+  .solution-icon {
+    font-size: 28px;
+    flex-shrink: 0;
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(34,197,94,0.1);
+    border-radius: 12px;
+  }
+  
+  .stat-card {
+    text-align: center;
+    padding: 32px 20px;
+  }
+  
+  .stat-card .big-number { font-size: 48px; }
+  .stat-card .label { margin-top: 8px; margin-bottom: 0; }
+  
+  .comp-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 15px;
+    margin-top: 16px;
+  }
+  
+  .comp-table th {
+    text-align: left;
+    padding: 12px 16px;
+    font-weight: 600;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+    border-bottom: 1px solid var(--border);
+  }
+  
+  .comp-table th:last-child {
+    color: var(--accent2);
+  }
+  
+  .comp-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid rgba(42,42,62,0.5);
+  }
+  
+  .comp-table tr:last-child td { border-bottom: none; }
+  
+  .comp-table td:last-child {
+    color: var(--green);
+    font-weight: 600;
+  }
+  
+  .check { color: var(--green); }
+  .cross { color: var(--red); }
+  .warn { color: var(--orange); }
+  
+  .phase {
+    border-left: 3px solid var(--accent);
+    padding-left: 20px;
+    margin-bottom: 24px;
+  }
+  
+  .phase.now { border-color: var(--green); }
+  .phase.soon { border-color: var(--blue); }
+  .phase.later { border-color: var(--orange); }
+  
+  .phase-label {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    padding: 4px 12px;
+    border-radius: 6px;
+    margin-bottom: 8px;
+  }
+  
+  .phase.now .phase-label { background: rgba(34,197,94,0.15); color: var(--green); }
+  .phase.soon .phase-label { background: rgba(59,130,246,0.15); color: var(--blue); }
+  .phase.later .phase-label { background: rgba(245,158,11,0.15); color: var(--orange); }
+  
+  ul.clean { list-style: none; }
+  ul.clean li {
+    padding: 6px 0;
+    font-size: 16px;
+    color: var(--text-dim);
+  }
+  ul.clean li::before {
+    content: '→ ';
+    color: var(--accent);
+    font-weight: 600;
+  }
+  
+  .flow-steps {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin: 32px 0;
+  }
+  
+  .flow-step {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 16px;
+    text-align: center;
+    flex: 1;
+  }
+  
+  .flow-step .step-num {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 8px;
+  }
+  
+  .flow-step .step-icon { font-size: 28px; margin-bottom: 8px; }
+  .flow-step .step-title { font-weight: 600; font-size: 15px; }
+  
+  .flow-arrow {
+    color: var(--text-dim);
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+  
+  .arch-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+  }
+  
+  .arch-box.highlight {
+    border-color: var(--accent);
+    background: linear-gradient(135deg, rgba(139,92,246,0.08), transparent);
+  }
+  
+  .revenue-bar {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin: 12px 0;
+  }
+  
+  .revenue-bar .bar {
+    flex: 1;
+    height: 32px;
+    background: var(--surface);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  
+  .revenue-bar .fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--green));
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    padding-left: 12px;
+    font-weight: 600;
+    font-size: 14px;
+  }
+  
+  .cta-box {
+    background: linear-gradient(135deg, rgba(139,92,246,0.15), rgba(34,197,94,0.1));
+    border: 1px solid rgba(139,92,246,0.3);
+    border-radius: 20px;
+    padding: 40px;
+    text-align: center;
+    margin-top: 20px;
+  }
+
+  /* Animations */
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  
+  .slide.active .animate {
+    animation: fadeInUp 0.6s ease forwards;
+  }
+  
+  .slide.active .d1 { animation-delay: 0.1s; opacity: 0; }
+  .slide.active .d2 { animation-delay: 0.2s; opacity: 0; }
+  .slide.active .d3 { animation-delay: 0.3s; opacity: 0; }
+  .slide.active .d4 { animation-delay: 0.4s; opacity: 0; }
+  .slide.active .d5 { animation-delay: 0.5s; opacity: 0; }
+  .slide.active .d6 { animation-delay: 0.6s; opacity: 0; }
+</style>
+</head>
+<body>
+
+<div class="progress" id="progress"></div>
+<div class="slide-counter" id="counter">1 / 12</div>
+<div class="nav-hint">← → or click to navigate</div>
+
+<div class="deck" id="deck">
+
+  <!-- SLIDE 1: Title -->
+  <div class="slide active" data-slide="0">
+    <div class="ghost-logo animate d1">👻</div>
+    <h1 class="animate d2">Ghost<span style="color:var(--accent)">Odds</span></h1>
+    <div class="tagline animate d3">Predict. Trade. No trace.</div>
+    <p class="subtitle animate d4">No-KYC Decentralized Prediction Markets on Solana</p>
+    <div style="display:flex;gap:12px;margin-top:8px" class="animate d5">
+      <span style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 16px;font-size:13px;color:var(--text-dim)">🔗 Solana</span>
+      <span style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 16px;font-size:13px;color:var(--text-dim)">🔮 Pyth Oracle</span>
+      <span style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 16px;font-size:13px;color:var(--text-dim)">💰 USDC</span>
+      <span style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 16px;font-size:13px;color:var(--text-dim)">📖 Open Source</span>
+    </div>
+  </div>
+
+  <!-- SLIDE 2: The Problem -->
+  <div class="slide" data-slide="1">
+    <p class="label animate d1">The Problem</p>
+    <h2 class="animate d2">$27.9B market.<br>Broken for users.</h2>
+    <div style="margin-top:32px">
+      <div class="pain-point animate d2">
+        <div class="pain-icon">🚫</div>
+        <div>
+          <h3 style="font-size:18px;margin-bottom:4px">KYC Walls</h3>
+          <p style="color:var(--text-dim);font-size:15px">Millions of crypto-native users excluded. Polymarket banned in the US. Kalshi requires full identity verification.</p>
+        </div>
+      </div>
+      <div class="pain-point animate d3">
+        <div class="pain-icon">⚠️</div>
+        <div>
+          <h3 style="font-size:18px;margin-bottom:4px">Oracle Manipulation</h3>
+          <p style="color:var(--text-dim);font-size:15px">$7M stolen on Polymarket via UMA whale attack (March 2025). Human oracles are corruptible.</p>
+        </div>
+      </div>
+      <div class="pain-point animate d4">
+        <div class="pain-icon">⏳</div>
+        <div>
+          <h3 style="font-size:18px;margin-bottom:4px">Slow Resolution</h3>
+          <p style="color:var(--text-dim);font-size:15px">24-48h dispute windows lock capital after obvious outcomes. Users wait days to access winnings.</p>
+        </div>
+      </div>
+      <div class="pain-point animate d5">
+        <div class="pain-icon">🔒</div>
+        <div>
+          <h3 style="font-size:18px;margin-bottom:4px">Gatekept Markets</h3>
+          <p style="color:var(--text-dim);font-size:15px">Users can't create markets they want. Centralized teams decide what's tradeable.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 3: Solution -->
+  <div class="slide" data-slide="2">
+    <p class="label animate d1">The Solution</p>
+    <h2 class="animate d2">Every friction point,<br>eliminated.</h2>
+    <div class="grid-2" style="margin-top:32px">
+      <div class="card animate d2">
+        <div class="solution-icon" style="margin-bottom:12px">🔓</div>
+        <h3 style="font-size:18px">No KYC</h3>
+        <p style="color:var(--text-dim);font-size:15px">Connect wallet and trade. That's it. No email, no ID, no selfies.</p>
+      </div>
+      <div class="card animate d3">
+        <div class="solution-icon" style="margin-bottom:12px">🤖</div>
+        <h3 style="font-size:18px">Auto-Resolution</h3>
+        <p style="color:var(--text-dim);font-size:15px">Pyth oracle resolves in seconds. Zero human involvement. Can't be bribed.</p>
+      </div>
+      <div class="card animate d4">
+        <div class="solution-icon" style="margin-bottom:12px">🛡️</div>
+        <h3 style="font-size:18px">Immutable Contracts</h3>
+        <p style="color:var(--text-dim);font-size:15px">No admin keys that can drain funds. PDA-owned vaults. Code is law.</p>
+      </div>
+      <div class="card animate d5">
+        <div class="solution-icon" style="margin-bottom:12px">⚡</div>
+        <h3 style="font-size:18px">Sub-Cent Fees</h3>
+        <p style="color:var(--text-dim);font-size:15px">Solana transactions cost fractions of a cent. 2% trading fee — competitive with Polymarket.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 4: How It Works -->
+  <div class="slide" data-slide="3">
+    <p class="label animate d1">How It Works</p>
+    <h2 class="animate d2">Five steps. No friction.</h2>
+    <div class="flow-steps animate d3">
+      <div class="flow-step">
+        <div class="step-num">Step 1</div>
+        <div class="step-icon">👛</div>
+        <div class="step-title">Connect Wallet</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="step-num">Step 2</div>
+        <div class="step-icon">🔍</div>
+        <div class="step-title">Browse Markets</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="step-num">Step 3</div>
+        <div class="step-icon">📊</div>
+        <div class="step-title">Trade YES/NO</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="step-num">Step 4</div>
+        <div class="step-icon">🔮</div>
+        <div class="step-title">Auto-Resolve</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="step-num">Step 5</div>
+        <div class="step-icon">💰</div>
+        <div class="step-title">Redeem</div>
+      </div>
+    </div>
+    <div class="grid-2 animate d4" style="margin-top:16px">
+      <div class="card-accent">
+        <h3 style="font-size:16px;color:var(--accent2)">Constant Product AMM</h3>
+        <p style="color:var(--text-dim);font-size:14px;margin-top:8px">x × y = k formula. Prices move with demand. Platform seeds initial 50/50 liquidity.</p>
+      </div>
+      <div class="card-accent">
+        <h3 style="font-size:16px;color:var(--accent2)">12h Lock Before Expiry</h3>
+        <p style="color:var(--text-dim);font-size:14px;margin-top:8px">Trading halts 12 hours before resolution. Prevents oracle frontrunning attacks.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 5: Market Opportunity -->
+  <div class="slide" data-slide="4">
+    <p class="label animate d1">Market Opportunity</p>
+    <h2 class="animate d2">Explosive growth.<br>Massive gap.</h2>
+    <div class="grid-3" style="margin-top:32px">
+      <div class="card stat-card animate d2">
+        <div class="big-number">$27.9B</div>
+        <div class="label">2025 Volume</div>
+      </div>
+      <div class="card stat-card animate d3">
+        <div class="big-number">210%</div>
+        <div class="label">YoY Growth</div>
+      </div>
+      <div class="card stat-card animate d4">
+        <div class="big-number">$11B</div>
+        <div class="label">Kalshi Valuation</div>
+      </div>
+    </div>
+    <div class="grid-2" style="margin-top:24px">
+      <div class="card animate d5">
+        <p style="font-size:14px;color:var(--text-dim)">Polymarket single-question volume</p>
+        <p style="font-size:32px;font-weight:800;margin-top:4px">$3.6B</p>
+      </div>
+      <div class="card-accent animate d6" style="text-align:center">
+        <p style="font-size:14px;color:var(--accent2)">Every major platform requires KYC</p>
+        <p style="font-size:24px;font-weight:700;margin-top:8px">We don't. 👻</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 6: Competitive Positioning -->
+  <div class="slide" data-slide="5">
+    <p class="label animate d1">Competitive Landscape</p>
+    <h2 class="animate d2">Where we win.</h2>
+    <div class="card animate d3" style="margin-top:24px;overflow-x:auto">
+      <table class="comp-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th>Polymarket</th>
+            <th>Kalshi</th>
+            <th>Drift BET</th>
+            <th>GhostOdds</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="font-weight:600">KYC Required</td>
+            <td class="cross">Yes</td>
+            <td class="cross">Full KYC</td>
+            <td class="check">No</td>
+            <td class="check">No ✓</td>
+          </tr>
+          <tr>
+            <td style="font-weight:600">Chain</td>
+            <td>Polygon</td>
+            <td class="cross">Centralized</td>
+            <td>Solana</td>
+            <td>Solana ✓</td>
+          </tr>
+          <tr>
+            <td style="font-weight:600">Resolution</td>
+            <td class="cross">UMA (manipulable)</td>
+            <td class="warn">Internal team</td>
+            <td class="warn">Multisig</td>
+            <td>Pyth auto ✓</td>
+          </tr>
+          <tr>
+            <td style="font-weight:600">Speed</td>
+            <td>Minutes</td>
+            <td class="cross">Manual</td>
+            <td class="warn">Hours</td>
+            <td>Seconds ✓</td>
+          </tr>
+          <tr>
+            <td style="font-weight:600">Fund Safety</td>
+            <td class="warn">Admin keys</td>
+            <td class="cross">Centralized</td>
+            <td class="warn">Multisig</td>
+            <td>Immutable PDA ✓</td>
+          </tr>
+          <tr>
+            <td style="font-weight:600">Open Source</td>
+            <td class="cross">No</td>
+            <td class="cross">No</td>
+            <td class="check">Yes</td>
+            <td>Yes ✓</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- SLIDE 7: Architecture -->
+  <div class="slide" data-slide="6">
+    <p class="label animate d1">Technical Architecture</p>
+    <h2 class="animate d2">Built to last.</h2>
+    <div class="grid-3 animate d3" style="margin-top:32px">
+      <div class="arch-box">
+        <div style="font-size:32px;margin-bottom:8px">🖥️</div>
+        <h3 style="font-size:16px">Frontend</h3>
+        <p style="font-size:13px;color:var(--text-dim);margin-top:8px">Next.js 14 + Tailwind<br>Dark theme, 5 routes<br>Wallet adapter integrated</p>
+      </div>
+      <div class="arch-box highlight">
+        <div style="font-size:32px;margin-bottom:8px">⚙️</div>
+        <h3 style="font-size:16px">Smart Contract</h3>
+        <p style="font-size:13px;color:var(--text-dim);margin-top:8px">678 lines Rust/Anchor<br>8 instructions, u128 math<br>15/15 tests passing</p>
+      </div>
+      <div class="arch-box">
+        <div style="font-size:32px;margin-bottom:8px">🔮</div>
+        <h3 style="font-size:16px">Pyth Oracle</h3>
+        <p style="font-size:13px;color:var(--text-dim);margin-top:8px">400ms price updates<br>Powers $100B+ DeFi<br>Battle-tested feeds</p>
+      </div>
+    </div>
+    <div class="grid-2 animate d4" style="margin-top:20px">
+      <div class="arch-box">
+        <div style="font-size:24px;margin-bottom:8px">👛</div>
+        <h3 style="font-size:16px">Wallet</h3>
+        <p style="font-size:13px;color:var(--text-dim);margin-top:4px">Phantom, Solflare, Backpack — any Solana wallet</p>
+      </div>
+      <div class="arch-box">
+        <div style="font-size:24px;margin-bottom:8px">💵</div>
+        <h3 style="font-size:16px">USDC Vault</h3>
+        <p style="font-size:13px;color:var(--text-dim);margin-top:4px">PDA-owned token accounts. No admin withdrawal keys.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 8: Roadmap -->
+  <div class="slide" data-slide="7">
+    <p class="label animate d1">Roadmap</p>
+    <h2 class="animate d2">Ship fast. Iterate faster.</h2>
+    <div style="margin-top:32px">
+      <div class="phase now animate d3">
+        <div class="phase-label">Phase 1 — Now</div>
+        <h3 style="font-size:18px;margin-top:8px">MVP Launch</h3>
+        <p style="color:var(--text-dim);font-size:15px;margin-top:4px">
+          ✅ Smart contract deployed to devnet<br>
+          ✅ Full trading UI with dark theme<br>
+          ✅ Platform-curated crypto price markets<br>
+          ✅ Pyth oracle auto-resolution<br>
+          🔄 Security audit in progress
+        </p>
+      </div>
+      <div class="phase soon animate d4">
+        <div class="phase-label">Phase 2 — Q2 2026</div>
+        <h3 style="font-size:18px;margin-top:8px">Open Platform</h3>
+        <p style="color:var(--text-dim);font-size:15px;margin-top:4px">
+          Permissionless market creation with creator fees<br>
+          Telegram bot for private social betting<br>
+          Multi-asset support (stocks, events)<br>
+          Mobile-optimized PWA
+        </p>
+      </div>
+      <div class="phase later animate d5">
+        <div class="phase-label">Phase 3 — Q3-Q4 2026</div>
+        <h3 style="font-size:18px;margin-top:8px">Scale</h3>
+        <p style="color:var(--text-dim);font-size:15px;margin-top:4px">
+          Governance token<br>
+          LP yield on collateral<br>
+          Cross-chain via Wormhole<br>
+          SDK for integrations
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 9: Revenue -->
+  <div class="slide" data-slide="8">
+    <p class="label animate d1">Revenue Model</p>
+    <h2 class="animate d2">Simple. Scalable.</h2>
+    <div class="grid-3 animate d3" style="margin-top:32px">
+      <div class="card" style="text-align:center">
+        <div class="big-number" style="font-size:56px">2%</div>
+        <h3 style="margin-top:8px;font-size:16px">Trading Fee</h3>
+        <p style="color:var(--text-dim);font-size:14px;margin-top:4px">On every buy & sell</p>
+      </div>
+      <div class="card" style="text-align:center">
+        <div style="font-size:56px;font-weight:900;color:var(--blue)">1/1</div>
+        <h3 style="margin-top:8px;font-size:16px">Creator Split</h3>
+        <p style="color:var(--text-dim);font-size:14px;margin-top:4px">1% creator, 1% protocol (Phase 2)</p>
+      </div>
+      <div class="card" style="text-align:center">
+        <div style="font-size:56px;font-weight:900;color:var(--orange)">PRO</div>
+        <h3 style="margin-top:8px;font-size:16px">Premium</h3>
+        <p style="color:var(--text-dim);font-size:14px;margin-top:4px">Analytics, API access (Phase 3)</p>
+      </div>
+    </div>
+    <div class="card animate d4" style="margin-top:24px">
+      <h3 style="font-size:16px;margin-bottom:16px">Revenue Projection</h3>
+      <div class="revenue-bar">
+        <span style="width:120px;font-size:14px;color:var(--text-dim)">$100M/mo vol</span>
+        <div class="bar"><div class="fill" style="width:20%">$2M/mo</div></div>
+      </div>
+      <div class="revenue-bar">
+        <span style="width:120px;font-size:14px;color:var(--text-dim)">$500M/mo vol</span>
+        <div class="bar"><div class="fill" style="width:60%">$10M/mo</div></div>
+      </div>
+      <div class="revenue-bar">
+        <span style="width:120px;font-size:14px;color:var(--text-dim)">$1B/mo vol</span>
+        <div class="bar"><div class="fill" style="width:100%">$20M/mo</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 10: Current Status -->
+  <div class="slide" data-slide="9">
+    <p class="label animate d1">Current Status</p>
+    <h2 class="animate d2">MVP is built.</h2>
+    <div class="grid-2" style="margin-top:32px">
+      <div class="animate d3">
+        <div class="card" style="margin-bottom:16px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span style="font-weight:600">Smart Contract</span>
+            <span style="color:var(--green);font-size:14px;font-weight:600">✅ Complete</span>
+          </div>
+          <p style="font-size:14px;color:var(--text-dim);margin-top:8px">678 lines • 8 instructions • 15/15 tests</p>
+        </div>
+        <div class="card" style="margin-bottom:16px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span style="font-weight:600">Frontend</span>
+            <span style="color:var(--green);font-size:14px;font-weight:600">✅ Complete</span>
+          </div>
+          <p style="font-size:14px;color:var(--text-dim);margin-top:8px">5 pages • Full trading UI • Dark theme</p>
+        </div>
+        <div class="card" style="margin-bottom:16px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span style="font-weight:600">Devnet Deploy</span>
+            <span style="color:var(--green);font-size:14px;font-weight:600">✅ Live</span>
+          </div>
+          <p style="font-size:14px;color:var(--text-dim);margin-top:8px">Program ID: FU64E...1i3ar9</p>
+        </div>
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span style="font-weight:600">Security Audit</span>
+            <span style="color:var(--orange);font-size:14px;font-weight:600">🔄 In Progress</span>
+          </div>
+          <p style="font-size:14px;color:var(--text-dim);margin-top:8px">Automated + manual review</p>
+        </div>
+      </div>
+      <div class="card-accent animate d4" style="display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center">
+        <div style="font-size:48px;margin-bottom:16px">🏗️</div>
+        <h3>Budget</h3>
+        <div class="big-number" style="font-size:40px;margin:12px 0">$15-20K</div>
+        <p style="color:var(--text-dim);font-size:14px">Smart contract dev & audit<br>Frontend development<br>Infrastructure & liquidity</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 11: Why Now -->
+  <div class="slide" data-slide="10">
+    <p class="label animate d1">Timing</p>
+    <h2 class="animate d2">Why now?</h2>
+    <div style="margin-top:32px">
+      <div class="pain-point animate d2">
+        <div class="solution-icon">📈</div>
+        <div>
+          <h3 style="font-size:18px;margin-bottom:4px">Prediction markets are mainstream</h3>
+          <p style="color:var(--text-dim);font-size:15px">Polymarket proved the model in 2024. $27.9B volume in 2025. The category is validated.</p>
+        </div>
+      </div>
+      <div class="pain-point animate d3">
+        <div class="solution-icon">⚖️</div>
+        <div>
+          <h3 style="font-size:18px;margin-bottom:4px">Regulatory clarity emerging</h3>
+          <p style="color:var(--text-dim);font-size:15px">CFTC approved Kalshi, creating legal precedent. Robinhood launched event contracts.</p>
+        </div>
+      </div>
+      <div class="pain-point animate d4">
+        <div class="solution-icon">🔓</div>
+        <div>
+          <h3 style="font-size:18px;margin-bottom:4px">No-KYC gap is widening</h3>
+          <p style="color:var(--text-dim);font-size:15px">Every platform adds more compliance. We go the opposite direction — serving the underserved.</p>
+        </div>
+      </div>
+      <div class="pain-point animate d5">
+        <div class="solution-icon">⚡</div>
+        <div>
+          <h3 style="font-size:18px;margin-bottom:4px">Solana is the fastest L1</h3>
+          <p style="color:var(--text-dim);font-size:15px">Sub-second finality, sub-cent fees. The best chain for high-frequency trading.</p>
+        </div>
+      </div>
+      <div class="pain-point animate d6">
+        <div class="solution-icon">🔮</div>
+        <div>
+          <h3 style="font-size:18px;margin-bottom:4px">Pyth oracle is battle-tested</h3>
+          <p style="color:var(--text-dim);font-size:15px">Powers $100B+ in DeFi. 400ms updates. Trusted by every major Solana protocol.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 12: CTA -->
+  <div class="slide" data-slide="11">
+    <div style="text-align:center">
+      <div class="ghost-logo animate d1" style="font-size:100px">👻</div>
+      <h1 class="animate d2" style="font-size:72px">Ghost<span style="color:var(--accent)">Odds</span></h1>
+      <div class="tagline animate d3" style="font-size:32px">Predict. Trade. No trace.</div>
+      <div class="cta-box animate d4">
+        <h3 style="font-size:20px;margin-bottom:12px">Seeking: Strategic Partners & Early Liquidity Providers</h3>
+        <div style="display:flex;gap:24px;justify-content:center;margin-top:20px;flex-wrap:wrap">
+          <div style="text-align:center">
+            <p style="font-size:13px;color:var(--text-dim)">Website</p>
+            <p style="font-weight:600;color:var(--accent2)">ghostodds.com</p>
+          </div>
+          <div style="text-align:center">
+            <p style="font-size:13px;color:var(--text-dim)">Code</p>
+            <p style="font-weight:600;color:var(--accent2)">Open Source on GitHub</p>
+          </div>
+          <div style="text-align:center">
+            <p style="font-size:13px;color:var(--text-dim)">Demo</p>
+            <p style="font-weight:600;color:var(--accent2)">Live on Solana Devnet</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  const counter = document.getElementById('counter');
+  const progress = document.getElementById('progress');
+  let current = 0;
+  const total = slides.length;
+
+  function update() {
+    slides.forEach((s, i) => {
+      s.classList.remove('active', 'exit');
+      if (i === current) s.classList.add('active');
+      else if (i < current) s.classList.add('exit');
+    });
+    counter.textContent = `${current + 1} / ${total}`;
+    progress.style.width = `${((current + 1) / total) * 100}%`;
+  }
+
+  function next() { if (current < total - 1) { current++; update(); } }
+  function prev() { if (current > 0) { current--; update(); } }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); next(); }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); prev(); }
+  });
+
+  document.addEventListener('click', e => {
+    if (e.clientX > window.innerWidth / 2) next();
+    else prev();
+  });
+
+  // Touch support
+  let touchStartX = 0;
+  document.addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; });
+  document.addEventListener('touchend', e => {
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    if (Math.abs(dx) > 50) { dx < 0 ? next() : prev(); }
+  });
+</script>
+</body>
+</html>
