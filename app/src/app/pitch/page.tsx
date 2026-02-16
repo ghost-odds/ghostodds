@@ -702,9 +702,17 @@ export default function PitchPage() {
             </p>
             <div className="bg-black/40 rounded-lg p-3 font-mono text-xs text-gray-500 overflow-x-auto">
               Program ID:{" "}
-              <span className="text-purple-400">
+              <a href="https://explorer.solana.com/address/FU64EotiwqACVJ9hyhH6XA9iiqQKmWjmPTUmSF1i3ar9?cluster=devnet" target="_blank" rel="noopener noreferrer" className="text-purple-400 hover:text-purple-300 underline decoration-purple-400/30 hover:decoration-purple-300/50 transition-colors">
                 FU64EotiwqACVJ9hyhH6XA9iiqQKmWjmPTUmSF1i3ar9
-              </span>
+              </a>
+            </div>
+            <div className="mt-2 flex gap-3">
+              <a href="https://explorer.solana.com/address/FU64EotiwqACVJ9hyhH6XA9iiqQKmWjmPTUmSF1i3ar9?cluster=devnet" target="_blank" rel="noopener noreferrer" className="text-xs text-gray-500 hover:text-purple-400 transition-colors">
+                ↗ Solana Explorer
+              </a>
+              <a href="https://github.com/ghost-odds/ghostodds" target="_blank" rel="noopener noreferrer" className="text-xs text-gray-500 hover:text-purple-400 transition-colors">
+                ↗ GitHub Source
+              </a>
             </div>
           </div>
 
