@@ -729,44 +729,136 @@ export default function PitchPage() {
         <p className="text-purple-400 font-mono text-sm tracking-wider uppercase mb-4">
           How It Works
         </p>
-        <h2 className="text-3xl md:text-4xl font-bold text-white mb-12">
-          Five steps. <GradientText>Zero friction.</GradientText>
+        <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
+          A real trade, <GradientText>step by step.</GradientText>
         </h2>
-        <div className="flex flex-wrap justify-center gap-6 md:gap-4 mb-8">
-          <FlowStep
-            step={1}
-            icon="👛"
-            title="Connect Wallet"
-            desc="Any Solana wallet — Phantom, Solflare, etc."
-          />
-          <div className="hidden md:flex items-center text-gray-600 text-xl">→</div>
-          <FlowStep
-            step={2}
-            icon="📊"
-            title="Browse Markets"
-            desc="Crypto prices, DeFi metrics, live odds"
-          />
-          <div className="hidden md:flex items-center text-gray-600 text-xl">→</div>
-          <FlowStep
-            step={3}
-            icon="💰"
-            title="Buy Shares"
-            desc="YES or NO — AMM pricing reflects probability"
-          />
-          <div className="hidden md:flex items-center text-gray-600 text-xl">→</div>
-          <FlowStep
-            step={4}
-            icon="🔮"
-            title="Auto-Resolve"
-            desc="Pyth reads price at expiry, settles instantly"
-          />
-          <div className="hidden md:flex items-center text-gray-600 text-xl">→</div>
-          <FlowStep
-            step={5}
-            icon="✅"
-            title="Redeem"
-            desc="Winners get $1/share. Instant payout."
-          />
+        <p className="text-gray-400 text-lg mb-12 max-w-2xl">
+          Let&apos;s say you think SOL will hit $300 by March. Here&apos;s exactly
+          what happens.
+        </p>
+
+        {/* Timeline */}
+        <div className="relative">
+          {/* Vertical line */}
+          <div className="absolute left-6 md:left-8 top-0 bottom-0 w-px bg-gradient-to-b from-purple-500/50 via-purple-500/20 to-transparent" />
+
+          {/* Step 1 */}
+          <div className="relative flex gap-5 md:gap-8 mb-12">
+            <div className="shrink-0 w-12 md:w-16 h-12 md:h-16 rounded-2xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center z-10">
+              <span className="text-purple-400 font-mono font-bold text-lg">01</span>
+            </div>
+            <div className="pt-1">
+              <h4 className="text-white font-semibold text-lg mb-2">Connect your Phantom wallet</h4>
+              <p className="text-gray-500 text-sm mb-3">One click. No signup, no email, no KYC. Your wallet is your identity.</p>
+              <div className="inline-flex items-center gap-2 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs font-mono text-gray-400">
+                <span className="w-2 h-2 rounded-full bg-green-400" />
+                Connected: 7xK9...mP2q
+              </div>
+            </div>
+          </div>
+
+          {/* Step 2 */}
+          <div className="relative flex gap-5 md:gap-8 mb-12">
+            <div className="shrink-0 w-12 md:w-16 h-12 md:h-16 rounded-2xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center z-10">
+              <span className="text-purple-400 font-mono font-bold text-lg">02</span>
+            </div>
+            <div className="pt-1">
+              <h4 className="text-white font-semibold text-lg mb-2">Find the market</h4>
+              <p className="text-gray-500 text-sm mb-3">Browse live markets, check the odds. SOL $300 by March is trading at 62¢ YES — the market thinks there&apos;s a 62% chance.</p>
+              <div className="bg-white/5 border border-white/10 rounded-xl p-4 max-w-sm">
+                <div className="text-xs text-purple-400 mb-1">Crypto · 30d left</div>
+                <div className="text-white font-semibold text-sm mb-3">Will SOL reach $300 by March 2026?</div>
+                <div className="flex gap-3">
+                  <div className="flex-1 text-center py-2 rounded-lg bg-green-500/10 border border-green-500/20">
+                    <div className="text-green-400 font-mono font-bold">62¢</div>
+                    <div className="text-[10px] text-gray-500">YES</div>
+                  </div>
+                  <div className="flex-1 text-center py-2 rounded-lg bg-red-500/10 border border-red-500/20">
+                    <div className="text-red-400 font-mono font-bold">38¢</div>
+                    <div className="text-[10px] text-gray-500">NO</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Step 3 */}
+          <div className="relative flex gap-5 md:gap-8 mb-12">
+            <div className="shrink-0 w-12 md:w-16 h-12 md:h-16 rounded-2xl bg-green-500/10 border border-green-500/30 flex items-center justify-center z-10">
+              <span className="text-green-400 font-mono font-bold text-lg">03</span>
+            </div>
+            <div className="pt-1">
+              <h4 className="text-white font-semibold text-lg mb-2">Buy 100 YES shares at 62¢ each</h4>
+              <p className="text-gray-500 text-sm mb-3">You spend $62 USDC. The AMM prices shares between 0¢ and $1 based on market demand. If you&apos;re right, each share pays $1.</p>
+              <div className="bg-white/5 border border-white/10 rounded-xl p-4 max-w-sm">
+                <div className="flex justify-between text-sm mb-2">
+                  <span className="text-gray-500">Cost</span>
+                  <span className="text-white font-mono">$62.00 USDC</span>
+                </div>
+                <div className="flex justify-between text-sm mb-2">
+                  <span className="text-gray-500">Shares</span>
+                  <span className="text-white font-mono">100 YES</span>
+                </div>
+                <div className="flex justify-between text-sm mb-2">
+                  <span className="text-gray-500">Fee (2%)</span>
+                  <span className="text-white font-mono">$1.24</span>
+                </div>
+                <div className="border-t border-white/10 pt-2 mt-2 flex justify-between text-sm">
+                  <span className="text-gray-400">Potential payout</span>
+                  <span className="text-green-400 font-mono font-bold">$100.00</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Step 4 */}
+          <div className="relative flex gap-5 md:gap-8 mb-12">
+            <div className="shrink-0 w-12 md:w-16 h-12 md:h-16 rounded-2xl bg-orange-500/10 border border-orange-500/30 flex items-center justify-center z-10">
+              <span className="text-orange-400 font-mono font-bold text-lg">04</span>
+            </div>
+            <div className="pt-1">
+              <h4 className="text-white font-semibold text-lg mb-2">Market expires. Oracle resolves automatically.</h4>
+              <p className="text-gray-500 text-sm mb-3">At the expiry timestamp, a resolver reads the Pyth SOL/USD price feed. No committee, no vote, no dispute. Just math.</p>
+              <div className="bg-white/5 border border-white/10 rounded-xl p-4 max-w-sm font-mono text-xs">
+                <div className="text-gray-600 mb-1">// Resolver crank executes</div>
+                <div className="text-gray-400">
+                  <span className="text-purple-400">pyth</span>.sol_usd = <span className="text-green-400">$312.47</span>
+                </div>
+                <div className="text-gray-400">
+                  target = <span className="text-white">$300.00</span>
+                </div>
+                <div className="text-gray-400 mt-1">
+                  $312.47 ≥ $300.00 → <span className="text-green-400 font-bold">YES wins ✓</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Step 5 */}
+          <div className="relative flex gap-5 md:gap-8">
+            <div className="shrink-0 w-12 md:w-16 h-12 md:h-16 rounded-2xl bg-green-500/10 border border-green-500/30 flex items-center justify-center z-10">
+              <span className="text-green-400 font-mono font-bold text-lg">05</span>
+            </div>
+            <div className="pt-1">
+              <h4 className="text-white font-semibold text-lg mb-2">Redeem $100. Profit: $36.76</h4>
+              <p className="text-gray-500 text-sm mb-3">Your 100 YES shares are now worth $1 each. Redeem to your wallet instantly. No withdrawal delays, no approvals.</p>
+              <div className="bg-white/5 border border-white/10 rounded-xl p-4 max-w-sm">
+                <div className="flex justify-between text-sm mb-2">
+                  <span className="text-gray-500">100 YES × $1.00</span>
+                  <span className="text-white font-mono">$100.00</span>
+                </div>
+                <div className="flex justify-between text-sm mb-2">
+                  <span className="text-gray-500">Original cost</span>
+                  <span className="text-gray-400 font-mono">-$63.24</span>
+                </div>
+                <div className="border-t border-white/10 pt-2 mt-2 flex justify-between text-sm">
+                  <span className="text-gray-400 font-bold">Net profit</span>
+                  <span className="text-green-400 font-mono font-bold text-lg">+$36.76</span>
+                </div>
+                <div className="text-[10px] text-gray-600 mt-2">59% return · settled in &lt;1 second</div>
+              </div>
+            </div>
+          </div>
         </div>
       </Section>
 
