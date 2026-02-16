@@ -106,11 +106,23 @@ export function useMarket(marketId: number) {
       if (onChain) {
         setMarket(mapOnChainMarket(onChain));
       } else {
-        setMarket(null);
-        setError("Market not found on-chain");
+        // Fall back to demo market
+        const demo = DEMO_MARKETS.find((m) => m.id === marketId);
+        if (demo) {
+          setMarket(demo);
+        } else {
+          setMarket(null);
+          setError("Market not found");
+        }
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to fetch market");
+      // On error, also try demo
+      const demo = DEMO_MARKETS.find((m) => m.id === marketId);
+      if (demo) {
+        setMarket(demo);
+      } else {
+        setError(e instanceof Error ? e.message : "Failed to fetch market");
+      }
     } finally {
       setLoading(false);
     }
