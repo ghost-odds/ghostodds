@@ -5,8 +5,16 @@ import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { useMarkets } from "@/lib/useMarkets";
 import { createMarket } from "@/lib/anchor";
 import { formatUSD } from "@/lib/format";
-import { Plus, BarChart2, Users, DollarSign, Activity, Loader2, Wallet } from "lucide-react";
+import { Plus, BarChart2, Users, DollarSign, Activity, Loader2, Wallet, ShieldX } from "lucide-react";
 import { useToast } from "@/components/Toast";
+
+const ADMIN_WALLET = process.env.NEXT_PUBLIC_ADMIN_WALLET || "";
+
+function isAdmin(pubkey: string | null): boolean {
+  if (!pubkey) return false;
+  if (ADMIN_WALLET === "") return true; // empty = any wallet is admin
+  return pubkey === ADMIN_WALLET;
+}
 
 export default function AdminPage() {
   const { connected, publicKey, signTransaction, signAllTransactions } = useWallet();
@@ -20,11 +28,42 @@ export default function AdminPage() {
     category: "Crypto",
     resolutionSource: "Pyth: SOL/USD",
     targetPrice: "",
-    operator: "0", // 0 = >=
+    operator: "0",
     expiry: "",
     liquidity: "",
   });
   const [creating, setCreating] = useState(false);
+
+  const walletAddress = publicKey?.toBase58() ?? null;
+  const admin = isAdmin(walletAddress);
+
+  // Not connected
+  if (!connected) {
+    return (
+      <div>
+        <h1 className="text-2xl font-bold text-text-primary mb-6">Admin Panel</h1>
+        <div className="bg-surface border border-border rounded-xl p-10 text-center">
+          <Wallet className="w-8 h-8 text-text-muted mx-auto mb-3" />
+          <p className="text-text-secondary">Connect wallet to access admin panel</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Connected but not admin
+  if (!admin) {
+    return (
+      <div>
+        <h1 className="text-2xl font-bold text-text-primary mb-6">Admin Panel</h1>
+        <div className="bg-surface border border-border rounded-xl p-10 text-center">
+          <ShieldX className="w-8 h-8 text-danger mx-auto mb-3" />
+          <p className="text-text-primary font-semibold mb-1">Access Denied</p>
+          <p className="text-text-secondary text-sm">Admin wallet required.</p>
+          <p className="text-text-muted text-xs mt-2 font-mono">{walletAddress?.slice(0, 8)}...{walletAddress?.slice(-8)}</p>
+        </div>
+      </div>
+    );
+  }
 
   const totalVolume = markets.reduce((s, m) => s + m.volume, 0);
   const activeCount = markets.filter((m) => m.status === "active").length;
@@ -47,7 +86,6 @@ export default function AdminPage() {
     setCreating(true);
     try {
       const wallet = { publicKey, signTransaction, signAllTransactions };
-
       const expiresAt = Math.floor(new Date(form.expiry).getTime() / 1000);
       const targetPrice = parseFloat(form.targetPrice);
       const liquidity = parseFloat(form.liquidity);
@@ -84,14 +122,10 @@ export default function AdminPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-text-primary mb-6">Admin Panel</h1>
-
-      {!connected && (
-        <div className="bg-surface border border-border rounded-xl p-10 text-center mb-8">
-          <Wallet className="w-8 h-8 text-text-muted mx-auto mb-3" />
-          <p className="text-text-secondary">Connect platform authority wallet to manage markets</p>
-        </div>
-      )}
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold text-text-primary">Admin Panel</h1>
+        <span className="text-xs text-success bg-success/10 px-2.5 py-1 rounded-full font-medium">● Authenticated</span>
+      </div>
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
@@ -213,7 +247,7 @@ export default function AdminPage() {
           </div>
           <button
             type="submit"
-            disabled={creating || !connected}
+            disabled={creating}
             className="px-6 py-2.5 bg-primary hover:bg-primary-hover text-white font-semibold rounded-lg transition-all duration-150 active:scale-[0.98] disabled:opacity-50 cursor-pointer"
           >
             {creating ? (

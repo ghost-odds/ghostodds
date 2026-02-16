@@ -4,15 +4,17 @@ import { useState, useEffect, useCallback } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useConnection } from "@solana/wallet-adapter-react";
 import { LAMPORTS_PER_SOL } from "@solana/web3.js";
-import { Wallet, Copy, LogOut, ChevronDown } from "lucide-react";
+import { Wallet, Copy, LogOut, ChevronDown, DollarSign } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "./Toast";
+import { useUsdc } from "@/lib/usdc-context";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 
 export function WalletButton() {
   const { publicKey, connected, disconnect } = useWallet();
   const { connection } = useConnection();
   const { toast } = useToast();
+  const { balance: usdcBalance, addBalance } = useUsdc();
   const [showDropdown, setShowDropdown] = useState(false);
   const [balance, setBalance] = useState<number | null>(null);
 
@@ -52,9 +54,12 @@ export function WalletButton() {
         <div className="w-6 h-6 rounded-full bg-gradient-to-br from-primary to-success" />
         <div className="flex flex-col items-start">
           <span className="text-sm font-mono text-text-primary">{truncatedAddress}</span>
-          {balance !== null && (
-            <span className="text-[10px] text-text-muted font-mono">{balance.toFixed(2)} SOL</span>
-          )}
+          <div className="flex items-center gap-2">
+            {balance !== null && (
+              <span className="text-[10px] text-text-muted font-mono">{balance.toFixed(2)} SOL</span>
+            )}
+            <span className="text-[10px] text-success font-mono font-semibold">${usdcBalance.toLocaleString()} USDC</span>
+          </div>
         </div>
         <ChevronDown className={cn("w-4 h-4 text-text-muted transition-transform", showDropdown && "rotate-180")} />
       </button>
@@ -75,6 +80,17 @@ export function WalletButton() {
             >
               <Copy className="w-4 h-4" />
               Copy Address
+            </button>
+            <button
+              onClick={() => {
+                addBalance(1000);
+                toast("Received 1,000 USDC", "success");
+                setShowDropdown(false);
+              }}
+              className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-success hover:text-success hover:bg-surface transition-colors cursor-pointer"
+            >
+              <DollarSign className="w-4 h-4" />
+              Get Test USDC
             </button>
             <button
               onClick={handleDisconnect}
