@@ -5,6 +5,7 @@ import { Search, TrendingUp, Clock, Flame, LayoutGrid, Loader2, AlertCircle, Gho
 import { useMarkets } from "@/lib/useMarkets";
 import { MarketCard } from "@/components/MarketCard";
 import { cn } from "@/lib/utils";
+import { GhostPattern } from "@/components/GhostPattern";
 
 const filters = [
   { key: "all", label: "All", icon: LayoutGrid },
@@ -56,11 +57,12 @@ export default function HomePage() {
   return (
     <div>
       {/* Hero */}
-      <div className="text-center py-12 sm:py-16">
-        <h1 className="text-4xl sm:text-5xl font-bold text-text-primary mb-4">
+      <div className="relative text-center py-12 sm:py-16 overflow-hidden">
+        <GhostPattern variant="header" />
+        <h1 className="relative z-10 text-4xl sm:text-5xl font-bold text-text-primary mb-4">
           Predict. Trade. <span className="text-primary">No trace.</span>
         </h1>
-        <p className="text-text-secondary text-lg max-w-xl mx-auto mb-8">
+        <p className="relative z-10 text-text-secondary text-lg max-w-xl mx-auto mb-8">
           Decentralized prediction markets on Solana. Trade outcomes on crypto prices, DeFi metrics, and more.
         </p>
       </div>

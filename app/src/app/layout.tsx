@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Navbar } from "@/components/Navbar";
+import { Footer } from "@/components/Footer";
 import { ClientProviders } from "@/components/ClientProviders";
 import { ToastProvider } from "@/components/Toast";
 
@@ -36,6 +37,7 @@ export default function RootLayout({
             <main className="max-w-[1280px] mx-auto px-4 sm:px-6 pt-20 pb-12">
               {children}
             </main>
+            <Footer />
           </ToastProvider>
         </ClientProviders>
       </body>

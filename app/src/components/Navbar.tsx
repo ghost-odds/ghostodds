@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Ghost, BarChart3, Briefcase, Settings } from "lucide-react";
 import { WalletButton } from "./WalletButton";
+import { GhostPattern } from "./GhostPattern";
 
 const links = [
   { href: "/", label: "Markets", icon: BarChart3 },
@@ -16,8 +17,9 @@ export function Navbar() {
   const pathname = usePathname();
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 glass border-b border-border">
-      <div className="max-w-[1280px] mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+    <nav className="fixed top-0 left-0 right-0 z-50 glass border-b border-border overflow-hidden">
+      <GhostPattern variant="header" className="opacity-40" />
+      <div className="relative z-10 max-w-[1280px] mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
         <div className="flex items-center gap-8">
           <Link href="/" className="flex items-center gap-2 group">
             <Ghost className="w-6 h-6 text-primary group-hover:text-primary-hover transition-colors" />

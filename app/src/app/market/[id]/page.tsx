@@ -14,6 +14,7 @@ import { isPriceMarket, getCoinIdFromSource, fetchPriceHistory, PriceInfo } from
 import {
   ResponsiveContainer, ComposedChart, Line, XAxis, YAxis, Tooltip, Area, ReferenceLine, Legend
 } from "recharts";
+import { GhostPattern } from "@/components/GhostPattern";
 
 type TimeRange = "1H" | "6H" | "24H" | "7D";
 const RANGE_POINTS: Record<TimeRange, number> = { "1H": 60, "6H": 120, "24H": 200, "7D": 500 };
@@ -224,8 +225,9 @@ export default function MarketDetailPage({ params }: { params: Promise<{ id: str
           </div>
 
           {/* Price Chart */}
-          <div className="bg-surface border border-border rounded-xl p-5">
-            <div className="flex items-center justify-between mb-4">
+          <div className="relative bg-surface border border-border rounded-xl p-5 overflow-hidden">
+            <GhostPattern variant="grid" />
+            <div className="relative z-10 flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
                 <h3 className="text-sm font-semibold text-text-primary">Price History</h3>
                 {priceLoading && <Loader2 className="w-3.5 h-3.5 text-text-muted animate-spin" />}
