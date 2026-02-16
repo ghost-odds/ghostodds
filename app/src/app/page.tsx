@@ -166,9 +166,12 @@ export default function HomePage() {
       {/* Market Grid */}
       {!loading && markets.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {markets.map((market) => (
-            <MarketCard key={market.id} market={market} trending={filter === "trending"} />
-          ))}
+          {markets.map((market) => {
+            // Top 5 by volume are "trending" regardless of active filter
+            const trendingIds = [...allMarkets].sort((a, b) => b.volume - a.volume).slice(0, 5).map(m => m.id);
+            const isTrending = trendingIds.includes(market.id);
+            return <MarketCard key={market.id} market={market} trending={isTrending} />;
+          })}
         </div>
       )}
 

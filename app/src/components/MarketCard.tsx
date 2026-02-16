@@ -25,7 +25,7 @@ export function MarketCard({ market, trending }: { market: Market; trending?: bo
       {trending && (
         <>
           <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse at 50% 0%, rgba(245,158,11,0.07) 0%, rgba(239,68,68,0.04) 40%, transparent 70%)" }} />
-          <div className="absolute -top-2 -right-2 text-lg z-10">🔥</div>
+          <div className="absolute bottom-2 right-2 text-[80px] leading-none opacity-[0.06] pointer-events-none select-none">🔥</div>
         </>
       )}
       <div className="flex items-center justify-between mb-3">
