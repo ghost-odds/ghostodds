@@ -326,6 +326,10 @@ export default function PitchPage() {
           0%, 100% { opacity: 0.3; }
           50% { opacity: 0.6; }
         }
+        @keyframes bar-shimmer {
+          0% { background-position: 200% 0; }
+          100% { background-position: -200% 0; }
+        }
       `}</style>
 
       {/* ── HERO ── */}
@@ -396,6 +400,148 @@ export default function PitchPage() {
         <p className="text-gray-500 text-center">
           But every major platform has critical flaws.
         </p>
+      </Section>
+
+      <Divider />
+
+      {/* ── MARKET SIZE ── */}
+      <Section id="market-size">
+        <p className="text-purple-400 font-mono text-sm tracking-wider uppercase mb-4">
+          Market Size
+        </p>
+        <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
+          A <GradientText>$44 billion</GradientText> market growing at 200% YoY
+        </h2>
+        <p className="text-gray-400 text-lg leading-relaxed mb-12">
+          Prediction markets are the fastest-growing segment in both crypto and
+          fintech — outpacing online gambling (10% CAGR) and online poker (29%
+          CAGR) by an order of magnitude. At $44B, prediction market volume is
+          already ~34% of the entire online gambling industry despite being a
+          fraction of its age.
+        </p>
+
+        {/* ── Horizontal bar chart ── */}
+        <div className="space-y-6 mb-14">
+          {/* Online Gambling */}
+          <div>
+            <div className="flex items-baseline justify-between mb-2">
+              <div>
+                <span className="text-white font-semibold">Online Gambling</span>
+                <span className="text-gray-600 text-xs ml-2">GlobeNewsWire</span>
+              </div>
+              <div className="text-right">
+                <span className="font-mono text-white font-bold">$130.2B</span>
+                <span className="text-gray-500 text-xs ml-2">10% CAGR</span>
+              </div>
+            </div>
+            <div className="h-8 rounded-lg bg-white/5 overflow-hidden">
+              <div
+                className="h-full rounded-lg bg-gray-600/40"
+                style={{ width: "100%" }}
+              />
+            </div>
+            <p className="text-gray-600 text-xs mt-1">→ $143B projected 2026</p>
+          </div>
+
+          {/* Prediction Markets */}
+          <div>
+            <div className="flex items-baseline justify-between mb-2">
+              <div>
+                <span className="text-white font-semibold">Prediction Markets</span>
+                <span className="text-gray-600 text-xs ml-2">Gambling Insider</span>
+              </div>
+              <div className="text-right">
+                <span className="font-mono font-bold"><GradientText>$44B+</GradientText></span>
+                <span className="text-purple-400 text-xs ml-2 font-semibold">~200% YoY 🚀</span>
+              </div>
+            </div>
+            <div className="h-8 rounded-lg bg-white/5 overflow-hidden relative">
+              <div
+                className="h-full rounded-lg animate-bar-pulse"
+                style={{
+                  width: "33.8%",
+                  background: "linear-gradient(90deg, #7c3aed, #6366f1, #7c3aed)",
+                  backgroundSize: "200% 100%",
+                  animation: "bar-shimmer 2s ease-in-out infinite",
+                }}
+              />
+            </div>
+            <p className="text-gray-600 text-xs mt-1">↑ from ~$15B in 2024 — fastest-growing segment</p>
+          </div>
+
+          {/* Crypto Gambling */}
+          <div>
+            <div className="flex items-baseline justify-between mb-2">
+              <div>
+                <span className="text-white font-semibold">Crypto Gambling</span>
+                <span className="text-gray-600 text-xs ml-2">Blockonomi</span>
+              </div>
+              <div className="text-right">
+                <span className="font-mono text-white font-bold">$10B+</span>
+                <span className="text-gray-500 text-xs ml-2">projected 2026</span>
+              </div>
+            </div>
+            <div className="h-8 rounded-lg bg-white/5 overflow-hidden">
+              <div
+                className="h-full rounded-lg bg-gray-600/40"
+                style={{ width: "7.7%" }}
+              />
+            </div>
+          </div>
+
+          {/* Online Poker */}
+          <div>
+            <div className="flex items-baseline justify-between mb-2">
+              <div>
+                <span className="text-white font-semibold">Online Poker</span>
+                <span className="text-gray-600 text-xs ml-2">MarkNTel</span>
+              </div>
+              <div className="text-right">
+                <span className="font-mono text-white font-bold">$6.3B</span>
+                <span className="text-gray-500 text-xs ml-2">29% CAGR</span>
+              </div>
+            </div>
+            <div className="h-8 rounded-lg bg-white/5 overflow-hidden">
+              <div
+                className="h-full rounded-lg bg-gray-600/40"
+                style={{ width: "4.8%" }}
+              />
+            </div>
+            <p className="text-gray-600 text-xs mt-1">→ $37B projected by 2030</p>
+          </div>
+        </div>
+
+        {/* ── Key stats grid ── */}
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-10">
+          <div className="border border-white/10 rounded-xl p-5 bg-white/[0.02] text-center">
+            <div className="font-mono text-2xl font-bold text-white mb-1">$50B</div>
+            <p className="text-gray-500 text-xs">Kalshi annualized volume 2025<br /><span className="text-gray-600">up from $300M prior year</span></p>
+          </div>
+          <div className="border border-white/10 rounded-xl p-5 bg-white/[0.02] text-center">
+            <div className="font-mono text-2xl font-bold text-white mb-1">$701.7M</div>
+            <p className="text-gray-500 text-xs">Single-day volume record<br /><span className="text-gray-600">January 2026</span></p>
+          </div>
+          <div className="border border-purple-500/20 rounded-xl p-5 bg-purple-500/5 text-center col-span-2 md:col-span-1">
+            <div className="font-mono text-2xl font-bold mb-1"><GradientText>85-90%</GradientText></div>
+            <p className="text-gray-500 text-xs">Polymarket + Kalshi<br /><span className="text-gray-600">control of market volume</span></p>
+          </div>
+        </div>
+
+        {/* Incoming players */}
+        <div className="border border-white/10 rounded-xl p-6 bg-white/[0.02]">
+          <p className="text-gray-400 text-sm mb-3">
+            <span className="text-white font-semibold">Everyone is entering this space.</span>{" "}
+            DraftKings, Gemini, and Crypto.com are all building or acquiring prediction market products.
+            The window for a no-KYC, oracle-native alternative is now.
+          </p>
+          <div className="flex flex-wrap gap-3 mt-4">
+            {["Kalshi — $11B (Sequoia-led)", "Polymarket — $9B", "DraftKings", "Gemini", "Crypto.com"].map((name, i) => (
+              <span key={i} className="text-xs font-mono px-3 py-1.5 rounded-full bg-white/5 text-gray-400 border border-white/10">
+                {name}
+              </span>
+            ))}
+          </div>
+        </div>
       </Section>
 
       <Divider />
