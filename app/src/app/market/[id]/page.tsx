@@ -263,6 +263,10 @@ export default function MarketDetailPage({ params }: { params: Promise<{ id: str
                       <stop offset="0%" stopColor="#22c55e" stopOpacity={0.15} />
                       <stop offset="100%" stopColor="#22c55e" stopOpacity={0} />
                     </linearGradient>
+                    <linearGradient id="priceGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#7c5cfc" stopOpacity={0.15} />
+                      <stop offset="100%" stopColor="#7c5cfc" stopOpacity={0} />
+                    </linearGradient>
                   </defs>
                   <XAxis dataKey="time" hide />
                   <YAxis
@@ -311,12 +315,13 @@ export default function MarketDetailPage({ params }: { params: Promise<{ id: str
                     name="probability"
                   />
                   {hasAssetPrice && (
-                    <Line
+                    <Area
                       yAxisId="price"
                       type="monotone"
                       dataKey="assetPrice"
                       stroke="#7c5cfc"
                       strokeWidth={2}
+                      fill="url(#priceGradient)"
                       dot={false}
                       animationDuration={500}
                       name="assetPrice"
