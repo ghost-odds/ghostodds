@@ -32,16 +32,14 @@ export function WalletButton() {
   const handleConnect = async () => {
     setConnecting(true);
     try {
-      // Select first available wallet
       const available = wallets.find((w) => w.readyState === "Installed");
-      if (available) {
-        select(available.adapter.name);
-        await connect();
-      } else {
-        // If no wallet installed, select Phantom (will prompt install)
-        select(wallets[0]?.adapter.name || "Phantom" as never);
-        await connect();
+      const walletName = available?.adapter.name || wallets[0]?.adapter.name;
+      if (walletName) {
+        select(walletName);
+        // Wait a tick for select to take effect, then connect
+        await new Promise((r) => setTimeout(r, 100));
       }
+      await connect();
       toast("Wallet connected", "success");
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Connection failed";

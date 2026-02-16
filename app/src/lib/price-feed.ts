@@ -21,8 +21,13 @@ export interface PriceInfo {
 const cache = new Map<string, { data: PriceInfo; ts: number }>();
 const CACHE_TTL = 60_000; // 1 minute
 
+// Normalize resolution source: "Pyth: SOL/USD" -> "SOL/USD"
+function normalizeSource(resolutionSource: string): string {
+  return resolutionSource.replace(/^Pyth:\s*/i, "").trim();
+}
+
 export function getCoinIdFromSource(resolutionSource: string): string | null {
-  return SOURCE_TO_COIN[resolutionSource] ?? null;
+  return SOURCE_TO_COIN[normalizeSource(resolutionSource)] ?? null;
 }
 
 export function isPriceMarket(resolutionSource: string): boolean {
